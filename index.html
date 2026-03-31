@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <title>AES Inventory System</title>
 
-<!-- MSAL (load once) -->
+<!-- ✅ CORRECT MSAL SCRIPT (DO NOT CHANGE) -->
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
 <style>
@@ -12,17 +12,15 @@ body {
   font-family: Arial, sans-serif;
   background: #f4f6f8;
   margin: 0;
-  padding: 24px;
+  padding: 20px;
 }
 h2, h3 {
   margin-top: 0;
 }
 button {
   padding: 8px 14px;
+  margin-right: 6px;
   cursor: pointer;
-}
-nav button {
-  margin-right: 8px;
 }
 .hidden {
   display: none;
@@ -33,9 +31,13 @@ nav button {
   margin-bottom: 16px;
   border-radius: 6px;
 }
+nav {
+  margin-top: 10px;
+}
 table {
   width: 100%;
   border-collapse: collapse;
+  margin-top: 10px;
 }
 th, td {
   border: 1px solid #ccc;
@@ -47,16 +49,19 @@ th, td {
 .critical {
   background: #f8d7da;
 }
-.dropzone {
-  border: 2px dashed #999;
-  padding: 24px;
-  text-align: center;
-  background: #fafafa;
-  margin-bottom: 12px;
-}
 #error {
   color: red;
   margin-top: 10px;
+}
+.dropzone {
+  border: 2px dashed #999;
+  padding: 20px;
+  text-align: center;
+  background: #fafafa;
+  margin-top: 10px;
+}
+input {
+  width: 100%;
 }
 </style>
 </head>
@@ -64,7 +69,7 @@ th, td {
 <body>
 
 <!-- LOGIN -->
-<div id="loginScreen">
+<div id="loginScreen" class="card">
   <h2>AES Inventory System</h2>
   <button id="loginBtn">Sign in with Microsoft</button>
   <div id="error"></div>
@@ -77,32 +82,39 @@ th, td {
     <strong id="userEmail"></strong>
     <nav>
       <button onclick="showPage('stock')">Stock</button>
+      <button onclick="showPage('receiving')">Receiving</button>
       <button onclick="showPage('sales')">Sales</button>
       <button onclick="showPage('physical')">Physical Count</button>
     </nav>
   </div>
 
-  <!-- STOCK PAGE -->
+  <!-- STOCK -->
   <div id="stock" class="card">
     <h3>Stock Dashboard</h3>
     <table id="stockTable"></table>
   </div>
 
-  <!-- SALES PAGE -->
+  <!-- RECEIVING -->
+  <div id="receiving" class="card hidden">
+    <h3>Receiving</h3>
+    <button onclick="addReceiving()">Add Receiving Entry</button>
+    <table id="receivingTable"></table>
+  </div>
+
+  <!-- SALES -->
   <div id="sales" class="card hidden">
-    <h3>Sales / Warehouse Scan</h3>
-
+    <h3>Sales</h3>
     <div class="dropzone" id="pdfDrop">
-      Drop signed sales ticket PDFs here
+      Drop signed sales ticket PDFs here (stub)
     </div>
-
+    <button onclick="addSale()">Add Sale</button>
     <table id="salesTable"></table>
   </div>
 
   <!-- PHYSICAL COUNT -->
   <div id="physical" class="card hidden">
     <h3>Physical Count</h3>
-    <button onclick="startPhysical()">Start Count</button>
+    <button onclick="runPhysical()">Run Physical Count</button>
     <table id="varianceTable"></table>
   </div>
 
@@ -110,7 +122,7 @@ th, td {
 
 <script>
 /* =====================================================
-   AUTH (LOCKED — DO NOT TOUCH)
+   AUTH — LOCKED TO WORKING GITHUB PAGES REDIRECT
 ===================================================== */
 const msalApp = new msal.PublicClientApplication({
   auth: {
@@ -118,9 +130,7 @@ const msalApp = new msal.PublicClientApplication({
     authority: "https://login.microsoftonline.com/1d0cc9c5-af28-42e4-b83c-677cb00c9dde",
     redirectUri: "https://jmitchellaes.github.io/aes-stock/"
   },
-  cache: {
-    cacheLocation: "localStorage"
-  }
+  cache: { cacheLocation: "localStorage" }
 });
 
 const allowedUsers = [
@@ -143,7 +153,7 @@ document.getElementById("loginBtn").onclick = async () => {
     document.getElementById("userEmail").innerText =
       "Signed in as: " + email;
 
-    renderStock();
+    renderAll();
 
   } catch (e) {
     console.error(e);
@@ -153,43 +163,34 @@ document.getElementById("loginBtn").onclick = async () => {
 };
 
 /* =====================================================
-   DATA MODEL (TRANSACTION‑BASED)
+   DATA (IN‑MEMORY FOR NOW)
 ===================================================== */
 const fixtures = [
   { id: "FP4", part: "DTF4UZDSW3CCT", reorder: 50 },
   { id: "GPS-8", part: "GPS8UZDSW4CCT", reorder: 25 }
 ];
 
-const receiving = [
-  { fixture: "FP4", qty: 100 }
-];
-
+const receiving = [];
 const sales = [];
 
 /* =====================================================
-   STOCK MATH
+   CORE STOCK MATH
 ===================================================== */
 function stockFor(id) {
   const r = receiving.filter(x => x.fixture === id)
-                     .reduce((s,x) => s + x.qty, 0);
+                     .reduce((s,x)=>s+x.qty,0);
   const s = sales.filter(x => x.fixture === id)
-                 .reduce((s,x) => s + x.qty, 0);
+                 .reduce((s,x)=>s+x.qty,0);
   return r - s;
 }
 
 /* =====================================================
-   STOCK PAGE
+   RENDERING
 ===================================================== */
 function renderStock() {
   const t = document.getElementById("stockTable");
-  t.innerHTML = `<tr>
-    <th>Fixture</th>
-    <th>Part</th>
-    <th>Qty</th>
-    <th>Reorder</th>
-  </tr>`;
-
-  fixtures.forEach(f => {
+  t.innerHTML = `<tr><th>Fixture</th><th>Part</th><th>Qty</th><th>Reorder</th></tr>`;
+  fixtures.forEach(f=>{
     const qty = stockFor(f.id);
     const cls = qty < f.reorder ? "critical" : "";
     t.innerHTML += `<tr class="${cls}">
@@ -201,52 +202,59 @@ function renderStock() {
   });
 }
 
-/* =====================================================
-   SALES + PDF SCAN (STUB)
-===================================================== */
-document.getElementById("pdfDrop").ondragover = e => e.preventDefault();
-document.getElementById("pdfDrop").ondrop = e => {
-  e.preventDefault();
-  for (const file of e.dataTransfer.files) {
-    // Warehouse Scan stub — replace later
-    sales.push({ fixture: "FP4", qty: 10 });
-  }
-  renderStock();
-  renderSales();
-};
+function renderReceiving() {
+  const t = document.getElementById("receivingTable");
+  t.innerHTML = `<tr><th>Fixture</th><th>Qty</th></tr>`;
+  receiving.forEach(r=>{
+    t.innerHTML += `<tr><td>${r.fixture}</td><td>${r.qty}</td></tr>`;
+  });
+}
 
 function renderSales() {
   const t = document.getElementById("salesTable");
   t.innerHTML = `<tr><th>Fixture</th><th>Qty</th></tr>`;
-  sales.forEach(s => {
+  sales.forEach(s=>{
     t.innerHTML += `<tr><td>${s.fixture}</td><td>${s.qty}</td></tr>`;
   });
 }
 
+function renderAll() {
+  renderStock();
+  renderReceiving();
+  renderSales();
+}
+
 /* =====================================================
-   PHYSICAL COUNT
+   ACTIONS
 ===================================================== */
-function startPhysical() {
+function addReceiving() {
+  const f = prompt("Fixture ID:");
+  const q = Number(prompt("Qty received:"));
+  if (!f || !q) return;
+  receiving.push({ fixture: f, qty: q });
+  renderAll();
+}
+
+function addSale() {
+  const f = prompt("Fixture ID:");
+  const q = Number(prompt("Qty sold:"));
+  if (!f || !q) return;
+  sales.push({ fixture: f, qty: q });
+  renderAll();
+}
+
+function runPhysical() {
   const t = document.getElementById("varianceTable");
-  t.innerHTML = `<tr>
-    <th>Fixture</th>
-    <th>System</th>
-    <th>Physical</th>
-    <th>Variance</th>
-  </tr>`;
-
-  fixtures.forEach(f => {
+  t.innerHTML = `<tr><th>Fixture</th><th>System</th><th>Physical</th><th>Variance</th></tr>`;
+  fixtures.forEach(f=>{
     const system = stockFor(f.id);
-    const physical = prompt(`Physical count for ${f.id}:`);
-    if (physical === null) return;
-    const variance = physical - system;
-
-    if (variance !== 0) {
+    const phys = Number(prompt(`Physical count for ${f.id}:`));
+    if (phys !== system) {
       t.innerHTML += `<tr class="critical">
         <td>${f.id}</td>
         <td>${system}</td>
-        <td>${physical}</td>
-        <td>${variance}</td>
+        <td>${phys}</td>
+        <td>${phys - system}</td>
       </tr>`;
     }
   });
@@ -256,7 +264,7 @@ function startPhysical() {
    NAV
 ===================================================== */
 function showPage(id) {
-  ["stock","sales","physical"].forEach(p =>
+  ["stock","receiving","sales","physical"].forEach(p =>
     document.getElementById(p).classList.add("hidden")
   );
   document.getElementById(id).classList.remove("hidden");
@@ -265,4 +273,3 @@ function showPage(id) {
 
 </body>
 </html>
-``
