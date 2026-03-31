@@ -1,221 +1,761 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AES Inventory System</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AES Inventory System</title>
 
-<!-- ✅ MSAL -->
-<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+  <!-- MSAL (Microsoft login) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
-<!-- ✅ SheetJS for Excel import -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <!-- Excel import (one-time indexing) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
-<style>
-body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px }
-button { padding:6px 12px; margin-right:6px }
-input, select { padding:4px }
-.hidden { display:none }
-.card { background:#fff; padding:16px; margin-bottom:16px; border-radius:6px }
-table { width:100%; border-collapse:collapse; margin-top:10px }
-th,td { border:1px solid #ccc; padding:6px; font-size:13px }
-.critical { background:#f8d7da }
-nav button { margin-bottom:6px }
-.status { margin-top:10px; font-weight:bold }
-</style>
+  <!-- PDF text extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --page:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#e2e8f0;
+      --soft:#f8fafc;
+      --accent:#2563eb;
+      --bad:#dc2626;
+      --warn:#f59e0b;
+      --good:#16a34a;
+      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --radius: 14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+    }
+
+    /* Login screen */
+    .loginShell{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:var(--bg);
+    }
+    .loginCard{
+      width:min(520px, 92vw);
+      background:var(--page);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:28px 22px;
+      box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .loginCard img{height:56px; width:auto; display:block; margin:0 auto 10px;}
+    .loginTitle{font-size:22px; font-weight:900; margin:6px 0 16px;}
+    .btn{
+      border:1px solid var(--line);
+      background:var(--soft);
+      color:var(--ink);
+      padding:10px 14px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btnPrimary{
+      background:rgba(37,99,235,.12);
+      border-color:rgba(37,99,235,.25);
+      color:#1e3a8a;
+      font-weight:800;
+    }
+    .btnDanger{
+      background:rgba(220,38,38,.10);
+      border-color:rgba(220,38,38,.25);
+      color:#7f1d1d;
+      font-weight:800;
+    }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .err{color:var(--bad); font-size:12px; margin-top:10px; white-space:pre-wrap}
+
+    /* App shell */
+    .appShell{min-height:100vh; background:var(--bg)}
+    header{
+      position:sticky; top:0; z-index:50;
+      background:var(--page);
+      border-bottom:1px solid var(--line);
+      padding:12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:220px;
+    }
+    .brand img{height:34px; width:auto; display:block}
+    .brand .who{display:flex; flex-direction:column; line-height:1.1}
+    .brand .who .name{font-weight:900; font-size:13px}
+    .brand .who .email{font-size:11px; color:var(--muted)}
+    .hamburger{
+      width:42px; height:38px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:var(--soft);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      position:relative;
+    }
+    .hamburger .lines{
+      width:18px;
+      height:12px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+    .hamburger .lines span{
+      display:block; height:2px; background:#334155; border-radius:999px;
+    }
+    .menu{
+      position:absolute;
+      top:48px; right:0;
+      width:220px;
+      background:var(--page);
+      border:1px solid var(--line);
+      border-radius:14px;
+      box-shadow:var(--shadow);
+      padding:8px;
+      display:none;
+    }
+    .menu.open{display:block}
+    .menu button{
+      width:100%;
+      text-align:left;
+      padding:10px 10px;
+      border-radius:10px;
+      border:1px solid transparent;
+      background:transparent;
+      cursor:pointer;
+      font-size:13px;
+      color:var(--ink);
+    }
+    .menu button:hover{background:var(--soft); border-color:var(--line)}
+    .menu .sep{height:1px; background:var(--line); margin:6px 0}
+
+    main{
+      max-width:1280px;
+      margin:0 auto;
+      padding:16px;
+    }
+    .page{
+      background:var(--page);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      display:none;
+    }
+    .page.active{display:block}
+
+    .pageHeader{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .pageHeader h2{
+      margin:0;
+      font-size:14px;
+      letter-spacing:.2px;
+      text-transform:uppercase;
+    }
+    .pageHeader .sub{
+      margin:0;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    input, select, textarea{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:9px 10px;
+      font-size:13px;
+      outline:none;
+      background:#fff;
+    }
+    input:focus, select:focus, textarea:focus{
+      border-color:rgba(37,99,235,.45);
+      box-shadow:0 0 0 3px rgba(37,99,235,.10)
+    }
+    input[type="number"]{width:120px}
+    .w160{width:160px}
+    .w220{width:220px}
+    .w320{width:320px}
+    .muted{color:var(--muted)}
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(37,99,235,.08);
+      border:1px solid rgba(37,99,235,.18);
+      color:#1e3a8a;
+      font-size:11px;
+      font-weight:800;
+    }
+
+    table{width:100%; border-collapse:separate; border-spacing:0 8px}
+    th{font-size:11px; color:var(--muted); text-align:left; padding:0 8px}
+    td{
+      background:#fff;
+      border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+      padding:8px;
+      font-size:13px;
+      vertical-align:middle;
+    }
+    tr td:first-child{border-left:1px solid var(--line); border-radius:12px 0 0 12px}
+    tr td:last-child{border-right:1px solid var(--line); border-radius:0 12px 12px 0}
+    .right{text-align:right}
+    .badRow td{background:rgba(220,38,38,.06)}
+    .small{font-size:11px}
+    .ok{color:var(--good); font-weight:800}
+    .warn{color:var(--warn); font-weight:800}
+    .bad{color:var(--bad); font-weight:900}
+
+    /* Modal */
+    .modalOverlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.45);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:200;
+    }
+    .modalOverlay.open{display:flex}
+    .modal{
+      width:min(980px, 95vw);
+      max-height:85vh;
+      overflow:auto;
+      background:var(--page);
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow:var(--shadow);
+      padding:14px;
+    }
+    .modalHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .modalHeader h3{margin:0; font-size:14px; text-transform:uppercase; letter-spacing:.2px}
+    .closeX{
+      border:1px solid var(--line);
+      background:var(--soft);
+      border-radius:12px;
+      padding:8px 10px;
+      cursor:pointer;
+    }
+
+    /* Month breakdown layout */
+    .yearBlock{
+      border:1px solid var(--line);
+      border-radius:14px;
+      overflow:hidden;
+      margin-bottom:12px;
+    }
+    .yearBar{
+      background:#e7eefc;
+      border-bottom:1px solid var(--line);
+      padding:8px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-weight:900;
+    }
+    .monthsGrid{
+      display:grid;
+      grid-template-columns: repeat(12, minmax(80px,1fr));
+      gap:0;
+      border-top:1px solid var(--line);
+    }
+    .monthCell{
+      border-right:1px solid var(--line);
+      padding:8px 10px;
+      min-height:54px;
+    }
+    .monthCell:last-child{border-right:none}
+    .monthName{font-size:11px; color:var(--muted); font-weight:800}
+    .monthVal{margin-top:4px; font-weight:900}
+    .yearTotals{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-end;
+      padding:10px;
+      border-top:1px solid var(--line);
+      background:var(--soft);
+    }
+    .totBox{
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fff;
+      padding:8px 10px;
+      min-width:180px;
+    }
+    .totBox .label{font-size:11px; color:var(--muted); font-weight:800}
+    .totBox .val{font-weight:900; margin-top:3px}
+
+    /* Charts */
+    .chartGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    @media(max-width:980px){ .chartGrid{grid-template-columns:1fr} }
+  </style>
 </head>
 
 <body>
 
 <!-- LOGIN -->
-<div id="loginScreen" class="card">
-  <h2>AES Inventory System</h2>
-  <button id="loginBtn">Sign in with Microsoft</button>
-  <div id="error"></div>
+<div id="loginView" class="loginShell">
+  <div class="loginCard">
+    <img src="aes-logo.png" alt="AES logo">
+    <div class="loginTitle">AES Inventory System</div>
+    <button id="btnLogin" class="btn btnPrimary">Sign in with Microsoft</button>
+    <div id="loginError" class="err"></div>
+  </div>
 </div>
 
 <!-- APP -->
-<div id="app" class="hidden">
+<div id="appView" class="appShell" style="display:none;">
+  <header>
+    <div class="brand">
+      <img src="aes-logo.png" alt="AES logo">
+      <div class="who">
+        <div class="name">AES Inventory System</div>
+        <div class="email" id="whoEmail">—</div>
+      </div>
+    </div>
 
-  <div class="card">
-    <strong id="userEmail"></strong><br><br>
-    <nav>
-      <button onclick="showPage('stock')">Stock</button>
-      <button onclick="showPage('receiving')">Receiving</button>
-      <button onclick="showPage('sales')">Sales / Data</button>
-      <button onclick="showPage('physical')">Physical Count</button>
-      <button onclick="showPage('admin')">Admin</button>
-    </nav>
+    <div class="hamburger" id="hamburgerBtn" title="Menu">
+      <div class="lines"><span></span><span></span><span></span></div>
+      <div class="menu" id="menu">
+        <button data-page="inventory">Inventory</button>
+        <button data-page="transfers">Transfers</button>
+        <button data-page="data">Data</button>
+        <button data-page="month">Month Breakdown</button>
+        <button data-page="analyzed">Analyzed</button>
+        <div class="sep"></div>
+        <button id="btnOpenImport">Index from Excel (one-time)</button>
+        <button id="btnExport">Export JSON Backup</button>
+        <button id="btnReset" class="btnDanger">Reset Local Data</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Inventory -->
+    <section id="page-inventory" class="page active">
+      <div class="pageHeader">
+        <div>
+          <h2>Inventory</h2>
+          <p class="sub">Qty in stock is calculated. Only Reorder Level is editable inline.</p>
+        </div>
+        <div class="actions">
+          <span class="pill" id="pillSkuCount">0 SKUs</span>
+          <input id="invSearch" class="w320" placeholder="Search Type / Part / Description">
+          <button class="btn" id="btnInventoryEdit">Edit (Pallet/Case + Add SKU)</button>
+        </div>
+      </div>
+      <div id="inventoryTable"></div>
+    </section>
+
+    <!-- Transfers -->
+    <section id="page-transfers" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Transfers</h2>
+          <p class="sub">Manual entry or upload a packing slip PDF for parsing.</p>
+        </div>
+        <div class="actions">
+          <input id="trSearch" class="w320" placeholder="Search Transfer # / Part / Notes">
+          <button class="btn" id="btnTransferManual">Manual</button>
+          <label class="btn" for="trPdf">Download (PDF)</label>
+          <input id="trPdf" type="file" accept="application/pdf" style="display:none;">
+        </div>
+      </div>
+      <div id="transferTable"></div>
+    </section>
+
+    <!-- Data -->
+    <section id="page-data" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Data</h2>
+          <p class="sub">Manual entry or upload signed ticket PDFs (Warehouse Scan style).</p>
+        </div>
+        <div class="actions">
+          <input id="dataSearch" class="w320" placeholder="Search Part / SO / Distributor">
+          <button class="btn" id="btnDataManual">Manual</button>
+          <label class="btn" for="dataPdf">Download (PDF)</label>
+          <input id="dataPdf" type="file" accept="application/pdf" style="display:none;">
+        </div>
+      </div>
+      <div id="dataTable"></div>
+    </section>
+
+    <!-- Month Breakdown -->
+    <section id="page-month" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Month Breakdown</h2>
+          <p class="sub">Sales totals by month, formatted like your sheet. (From Data records)</p>
+        </div>
+        <div class="actions">
+          <select id="mbMetric">
+            <option value="sales">Sales $</option>
+            <option value="qty">Units</option>
+          </select>
+        </div>
+      </div>
+      <div id="monthBreakdown"></div>
+    </section>
+
+    <!-- Analyzed -->
+    <section id="page-analyzed" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Analyzed</h2>
+          <p class="sub">Filter and study sales (customer, price, quantity, part, dates) with charts.</p>
+        </div>
+        <div class="actions">
+          <select id="fltCustomer" class="w220"></select>
+          <select id="fltPart" class="w220"></select>
+          <input id="fltFrom" type="date">
+          <input id="fltTo" type="date">
+          <select id="fltMetric" class="w160">
+            <option value="sales">Sales $</option>
+            <option value="qty">Units</option>
+          </select>
+          <button class="btn" id="btnClearFilters">Clear</button>
+        </div>
+      </div>
+
+      <div class="chartGrid">
+        <div class="card" style="box-shadow:none;border:1px solid var(--line);">
+          <h2 style="margin:0 0 8px;">Trend</h2>
+          <canvas id="chartTrend" height="180"></canvas>
+        </div>
+        <div class="card" style="box-shadow:none;border:1px solid var(--line);">
+          <h2 style="margin:0 0 8px;">Top Customers</h2>
+          <canvas id="chartCustomers" height="180"></canvas>
+        </div>
+        <div class="card" style="box-shadow:none;border:1px solid var(--line); grid-column: 1 / -1;">
+          <h2 style="margin:0 0 8px;">Top SKUs</h2>
+          <canvas id="chartSkus" height="140"></canvas>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="card" style="box-shadow:none;border:1px solid var(--line);">
+        <h2 style="margin:0 0 8px;">Filtered Records</h2>
+        <div id="analyzedTable"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="modalOverlay" class="modalOverlay">
+  <div class="modal">
+    <div class="modalHeader">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="closeX" id="modalClose">Close</button>
+    </div>
+    <div id="modalBody"></div>
   </div>
-
-  <div id="stock" class="card"></div>
-  <div id="receiving" class="card hidden"></div>
-  <div id="sales" class="card hidden"></div>
-  <div id="physical" class="card hidden"></div>
-
-  <!-- ADMIN -->
-  <div id="admin" class="card hidden">
-    <h3>One‑Time Excel Import (Retire Excel)</h3>
-    <input id="excelInput" type="file" accept=".xlsx,.xls"
-           onchange="importExcel(this.files[0])">
-    <div id="importStatus" class="status"></div>
-    <p><b>After successful import, Excel is no longer required.</b></p>
-  </div>
-
 </div>
 
 <script>
-/* ================= AUTH ================= */
-const msalApp = new msal.PublicClientApplication({
-  auth:{
-    clientId:"c7c97eaf-1e41-4339-93c5-555b6c8bf231",
-    authority:"https://login.microsoftonline.com/1d0cc9c5-af28-42e4-b83c-677cb00c9dde",
-    redirectUri:"https://jmitchellaes.github.io/aes-stock/"
+/* =========================================================
+   CONFIG (AUTH LOCKED)
+========================================================= */
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
+    authority: "https://login.microsoftonline.com/1d0cc9c5-af28-42e4-b83c-677cb00c9dde",
+    // Keep the working GitHub Pages redirect you already validated
+    redirectUri: "https://jmitchellaes.github.io/aes-stock/"
   },
-  cache:{cacheLocation:"localStorage"}
-});
+  cache: { cacheLocation: "localStorage" }
+};
 
-const allowedUsers=[
+const ALLOWED_USERS = [
   "jmitchell@allelectricsales.com",
   "jmarra@allelectricsales.com"
 ];
 
-loginBtn.onclick=async()=>{
+const msalApp = new msal.PublicClientApplication(MSAL_CONFIG);
+
+/* =========================================================
+   STORAGE
+========================================================= */
+const KEY_META = "aes_inv_meta_v1";
+const KEY_SKUS = "aes_inv_skus_v1";
+const KEY_TRANSFERS = "aes_inv_transfers_v1";
+const KEY_DATA = "aes_inv_data_v1";
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function loadJSON(key, fallback){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }catch(e){ return fallback; } }
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let meta = loadJSON(KEY_META, { indexed:false, cutoffDate:null, indexedAt:null });
+let skus = loadJSON(KEY_SKUS, []);             // master SKU list
+let transfers = loadJSON(KEY_TRANSFERS, []);   // transfer transactions (inbound)
+let dataRows = loadJSON(KEY_DATA, []);         // sales/data transactions (outbound/inbound if return)
+
+function persistAll(){
+  saveJSON(KEY_META, meta);
+  saveJSON(KEY_SKUS, skus);
+  saveJSON(KEY_TRANSFERS, transfers);
+  saveJSON(KEY_DATA, dataRows);
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+function esc(s){ return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
+function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
+function money(n){ return (isFinite(n)?n:0).toLocaleString(undefined,{style:"currency",currency:"USD"}); }
+
+function parseDateAny(v){
+  if(!v) return null;
+  // Excel numeric date?
+  if(typeof v === "number"){
+    const d = XLSX.SSF.parse_date_code(v);
+    if(d) return new Date(d.y, d.m-1, d.d).toISOString().slice(0,10);
+  }
+  // string date
+  const s = String(v).trim();
+  // mm/dd/yyyy
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m){
+    const mm = String(m[1]).padStart(2,"0");
+    const dd = String(m[2]).padStart(2,"0");
+    return `${m[3]}-${mm}-${dd}`;
+  }
+  // yyyy-mm-dd
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m2) return s;
+  return null;
+}
+
+function getCutoffDate(){
+  // cutoff = date when inventory list was last checked (imported from excel)
+  return meta.cutoffDate || null;
+}
+
+function isAfterCutoff(dateStr){
+  const cut = getCutoffDate();
+  if(!cut) return true; // if no cutoff, everything counts
+  if(!dateStr) return true;
+  return dateStr > cut;
+}
+
+/* Type inference (prefilled) */
+function inferTypeFromId(invId){
+  const id = String(invId||"").toUpperCase();
+  if(id.startsWith("FP")) return "Flat Panel";
+  if(id.startsWith("TRV")) return "Troffer";
+  if(id.startsWith("GPS") || id.startsWith("LGPS")) return "Strip";
+  if(id.startsWith("QHB")) return "High Bay";
+  if(id.startsWith("UFO")) return "Round High Bay";
+  if(id.startsWith("HB")) return "High Bay";
+  if(id.startsWith("AL")) return "Area Light";
+  if(id.startsWith("WP")) return "Wall Pack";
+  if(id.startsWith("CAN")) return "Can Light";
+  if(id.startsWith("FED")) return "Lamp";
+  if(id.startsWith("P30") || id.startsWith("P38") || id.startsWith("FA")) return "Lamp";
+  if(id.startsWith("SK") || id.includes("MOUNT")) return "Accessory";
+  return "Other";
+}
+
+function findSkuByPart(part){
+  const p = String(part||"").trim().toUpperCase();
+  return skus.find(s => String(s.partNumber||"").toUpperCase() === p) || null;
+}
+
+/* Stock = openingQty + transfers(after cutoff) - sales(after cutoff) + returns(after cutoff) */
+function stockQtyForPart(part){
+  const sku = findSkuByPart(part);
+  const opening = sku ? num(sku.openingQty) : 0;
+
+  const inTransfers = transfers
+    .filter(t => String(t.partNumber||"").toUpperCase() === String(part||"").toUpperCase())
+    .filter(t => isAfterCutoff(t.arrivalDate))
+    .reduce((s,t)=> s + Math.abs(num(t.quantity)), 0);
+
+  const outSales = dataRows
+    .filter(d => String(d.partNumber||"").toUpperCase() === String(part||"").toUpperCase())
+    .filter(d => isAfterCutoff(d.date))
+    .reduce((s,d)=>{
+      const kind = d.kind || "Sale";
+      const q = Math.abs(num(d.quantity));
+      if(kind === "Return") return s - q; // returns add back
+      return s + q; // Sale/Sample/Defective reduce
+    }, 0);
+
+  return opening + inTransfers - outSales;
+}
+
+/* =========================================================
+   UI: MODAL
+========================================================= */
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitle = document.getElementById("modalTitle");
+const modalBody  = document.getElementById("modalBody");
+document.getElementById("modalClose").onclick = ()=> modalOverlay.classList.remove("open");
+function openModal(title, html){
+  modalTitle.textContent = title;
+  modalBody.innerHTML = html;
+  modalOverlay.classList.add("open");
+}
+
+/* =========================================================
+   UI: NAV MENU
+========================================================= */
+const menu = document.getElementById("menu");
+document.getElementById("hamburgerBtn").onclick = (e)=>{
+  menu.classList.toggle("open");
+  e.stopPropagation();
+};
+document.addEventListener("click", ()=> menu.classList.remove("open"));
+
+menu.addEventListener("click", (e)=>{
+  const btn = e.target.closest("button[data-page]");
+  if(!btn) return;
+  const page = btn.dataset.page;
+  showPage(page);
+  menu.classList.remove("open");
+});
+
+function showPage(name){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(`page-${name}`).classList.add("active");
+  if(name === "inventory") renderInventory();
+  if(name === "transfers") renderTransfers();
+  if(name === "data") renderData();
+  if(name === "month") renderMonthBreakdown();
+  if(name === "analyzed") renderAnalyzed();
+}
+
+/* =========================================================
+   AUTH FLOW
+========================================================= */
+const loginView = document.getElementById("loginView");
+const appView   = document.getElementById("appView");
+const whoEmail  = document.getElementById("whoEmail");
+const loginError = document.getElementById("loginError");
+
+document.getElementById("btnLogin").onclick = async ()=>{
+  loginError.textContent = "";
   try{
-    const r=await msalApp.loginPopup({scopes:["User.Read"]});
-    if(!allowedUsers.includes(r.account.username.toLowerCase())) throw "Unauthorized";
-    loginScreen.classList.add("hidden");
-    app.classList.remove("hidden");
-    userEmail.innerText=r.account.username;
-    renderAll();
-  }catch(e){ error.innerText=e; }
+    const res = await msalApp.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
+    const email = res.account.username.toLowerCase();
+    if(!ALLOWED_USERS.includes(email)){
+      await msalApp.logoutPopup();
+      throw new Error("Access denied for " + email);
+    }
+    whoEmail.textContent = email;
+    loginView.style.display = "none";
+    appView.style.display = "block";
+    renderInventory();
+    renderTransfers();
+    renderData();
+    renderMonthBreakdown();
+    renderAnalyzed();
+    showPage("inventory");
+  }catch(err){
+    console.error(err);
+    loginError.textContent = err.errorCode || err.message || String(err);
+  }
 };
 
-/* ================= DATA ================= */
-let skus = JSON.parse(localStorage.getItem("skus")||"[]");
-let receiving = JSON.parse(localStorage.getItem("receiving")||"[]");
-let sales = JSON.parse(localStorage.getItem("sales")||"[]");
+/* =========================================================
+   INVENTORY PAGE
+========================================================= */
+const pillSkuCount = document.getElementById("pillSkuCount");
+document.getElementById("invSearch").addEventListener("input", ()=> renderInventory());
 
-function save(){
-  localStorage.setItem("skus",JSON.stringify(skus));
-  localStorage.setItem("receiving",JSON.stringify(receiving));
-  localStorage.setItem("sales",JSON.stringify(sales));
-}
+document.getElementById("btnInventoryEdit").onclick = ()=>{
+  openInventoryEditModal();
+};
 
-function stockFor(id){
-  const base = skus.find(x=>x.id===id)?.qty||0;
-  const r = receiving.filter(x=>x.id===id).reduce((s,x)=>s+x.qty,0);
-  const s = sales.filter(x=>x.id===id).reduce((s,x)=>s+x.qty,0);
-  return base+r-s;
-}
+function renderInventory(){
+  pillSkuCount.textContent = `${skus.filter(s=>s.active!==false).length} SKUs`;
+  const q = document.getElementById("invSearch").value.trim().toLowerCase();
 
-/* ================= EXCEL IMPORT ================= */
-function importExcel(file){
-  if(!file) return;
+  const rows = skus
+    .filter(s => s.active !== false) // active only
+    .filter(s => {
+      if(!q) return true;
+      return (
+        String(s.type||"").toLowerCase().includes(q) ||
+        String(s.partNumber||"").toLowerCase().includes(q) ||
+        String(s.description||"").toLowerCase().includes(q)
+      );
+    })
+    .map(s=>{
+      const qty = stockQtyForPart(s.partNumber);
+      const low = qty < num(s.reorderLevel);
+      return `
+        <tr class="${low ? "badRow" : ""}">
+          <td>${esc(s.type)}</td>
+          <td>${esc(s.partNumber)}</td>
+          <td>${esc(s.description)}</td>
+          <td class="right ${low ? "bad" : ""}">${qty}</td>
+          <td class="right">${num(s.palletCaseQty)}</td>
+          <td class="right">
+            <input type="number" value="${num(s.reorderLevel)}"
+              data-part="${esc(s.partNumber)}" class="reorderInput" style="width:110px;">
+          </td>
+        </tr>
+      `;
+    }).join("");
 
-  importStatus.innerText="⏳ Importing Excel…";
-
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(e.target.result,{type:"binary"});
-    const sheet=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(sheet);
-
-    if(!rows.length){
-      importStatus.innerText="❌ No rows found.";
-      return;
-    }
-
-    skus = rows.map(r=>({
-      id:String(r.ID||"").trim(),
-      part:String(r.Part||"").trim(),
-      desc:String(r.Description||"").trim(),
-      qty:Number(r.Qty||0),
-      reorder:Number(r.Reorder||0)
-    })).filter(s=>s.id);
-
-    save();
-    renderAll();
-
-    importStatus.innerText =
-      `✅ Imported ${skus.length} SKUs successfully. Excel is retired.`;
-
-    excelInput.disabled=true;
-  };
-  reader.readAsBinaryString(file);
-}
-
-/* ================= UI ================= */
-function renderStock(){
-  stock.innerHTML=`<h3>Stock</h3>
-  <input placeholder="Search" oninput="renderStockFilter(this.value)">
-  <div id="stockTable"></div>`;
-  renderStockFilter("");
-}
-
-function renderStockFilter(f){
-  const q=f.toLowerCase();
-  stockTable.innerHTML=`<table>
-  <tr><th>ID</th><th>Part</th><th>Description</th><th>Qty</th><th>Reorder</th></tr>
-  ${skus.filter(s=>
-    s.id.toLowerCase().includes(q)||
-    s.part.toLowerCase().includes(q)||
-    s.desc.toLowerCase().includes(q)
-  ).map(s=>{
-    const qty=stockFor(s.id);
-    return `<tr class="${qty<s.reorder?'critical':''}">
-      <td>${s.id}</td><td>${s.part}</td><td>${s.desc}</td>
-      <td>${qty}</td><td>${s.reorder}</td></tr>`;
-  }).join("")}
-  </table>`;
-}
-
-function renderReceiving(){
-  receiving.innerHTML=`<h3>Receiving</h3>
-  <select id="rSku">${skus.map(s=>`<option>${s.id}</option>`).join("")}</select>
-  <input type="number" id="rQty" placeholder="Qty">
-  <button onclick="receiving.push({id:rSku.value,qty:+rQty.value});save();renderAll()">Add</button>`;
-}
-
-function renderSales(){
-  sales.innerHTML=`<h3>Sales / Data</h3>
-  <select id="sSku">${skus.map(s=>`<option>${s.id}</option>`).join("")}</select>
-  <input type="number" id="sQty" placeholder="Qty">
-  <button onclick="sales.push({id:sSku.value,qty:+sQty.value});save();renderAll()">Add</button>`;
-}
-
-function renderPhysical(){
-  physical.innerHTML=`<h3>Physical Count</h3>
-  <table>
-  <tr><th>ID</th><th>System</th><th>Physical</th><th>Variance</th></tr>
-  ${skus.map(s=>{
-    const sys=stockFor(s.id);
-    return `<tr>
-      <td>${s.id}</td>
-      <td>${sys}</td>
-      <td><input type="number" onchange="
-        this.parentElement.nextElementSibling.innerText=this.value-${sys};
-        this.parentElement.parentElement.className=
-          (this.value-${sys})!==0?'critical':'';
-      "></td>
-      <td>0</td></tr>`;
-  }).join("")}
-  </table>`;
-}
-
-function renderAll(){
-  renderStock();
-  renderReceiving();
-  renderSales();
-  renderPhysical();
-}
-
-function showPage(id){
-  ["stock","receiving","sales","physical","admin"].forEach(p=>{
-    document.getElementById(p).classList.add("hidden");
-  });
-  document.getElementById(id).classList.remove("hidden");
-}
-</script>
-
-</body>
-</html>
+  document.getElementById("inventoryTable").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Part Number</th>
+          <th>Description</th>
+          <th class="right">Qty In Stock</th>
+          <th class="right">Qty Pallet/Case</th>
+          <th class="right">Reorder Level (editable)</th>
+        </tr>
+      </thead>
+      <tbody>${rows || ""}</tbody>
+    </table>
+    <div class="small muted" style="margin-top:8px;">
