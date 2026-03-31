@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <title>AES Inventory App</title>
 
-<!-- ✅ CORRECT, WORKING MSAL SCRIPT -->
+<!-- ✅ MSAL (loaded ONCE) -->
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
 <style>
@@ -19,16 +19,16 @@ button {
   font-size: 16px;
   cursor: pointer;
 }
+#error {
+  color: red;
+  margin-top: 10px;
+}
 #app {
   display: none;
   margin-top: 20px;
   background: #ffffff;
   padding: 20px;
   border-radius: 6px;
-}
-.error {
-  color: red;
-  margin-top: 10px;
 }
 </style>
 </head>
@@ -38,7 +38,7 @@ button {
 <h2>AES Inventory System</h2>
 
 <button id="loginBtn">Sign in with Microsoft</button>
-<div id="error" class="error"></div>
+<div id="error"></div>
 
 <div id="app">
   <h3>✅ Login Successful</h3>
@@ -47,25 +47,20 @@ button {
 
 <script>
 /* =====================================================
-   MSAL CONFIG — SPA SAFE (NO SECRETS)
+   MSAL CONFIG — ONE FILE, ALL ENVIRONMENTS
 ===================================================== */
 const msalConfig = {
   auth: {
     clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
     authority: "https://login.microsoftonline.com/1d0cc9c5-af28-42e4-b83c-677cb00c9dde",
-    redirectUri: "https://jmitchellaes.github.io/aes-stock/"
-    ``
+    redirectUri: window.location.origin
   },
   cache: {
     cacheLocation: "localStorage",
     storeAuthStateInCookie: false
   }
 };
-``
 
-/* =====================================================
-   INIT MSAL
-===================================================== */
 const msalApp = new msal.PublicClientApplication(msalConfig);
 
 /* =====================================================
@@ -79,33 +74,36 @@ const allowedUsers = [
 /* =====================================================
    LOGIN HANDLER
 ===================================================== */
-document.getElementById("loginBtn").addEventListener("click", async () => {
-  document.getElementById("error").innerText = "";
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("loginBtn");
 
-  try {
-    const response = await msalApp.loginPopup({
-      scopes: ["User.Read"]
-    });
+  btn.addEventListener("click", async () => {
+    document.getElementById("error").innerText = "";
 
-    const email = response.account.username.toLowerCase();
+    try {
+      const response = await msalApp.loginPopup({
+        scopes: ["User.Read"],
+        prompt: "select_account"
+      });
 
-    if (!allowedUsers.includes(email)) {
+      const email = response.account.username.toLowerCase();
+
+      if (!allowedUsers.includes(email)) {
+        await msalApp.logoutPopup();
+        throw new Error("Access denied for " + email);
+      }
+
+      btn.style.display = "none";
+      document.getElementById("app").style.display = "block";
+      document.getElementById("userEmail").innerText =
+        "Signed in as: " + email;
+
+    } catch (err) {
+      console.error("LOGIN ERROR:", err);
       document.getElementById("error").innerText =
-        "Access denied: unauthorized user.";
-      await msalApp.logoutPopup();
-      return;
+        err.errorCode || err.message || "Login failed";
     }
-
-    document.getElementById("loginBtn").style.display = "none";
-    document.getElementById("app").style.display = "block";
-    document.getElementById("userEmail").innerText =
-      "Signed in as: " + email;
-
-  } catch (err) {
-    console.error(err);
-    document.getElementById("error").innerText =
-      "Microsoft sign‑in failed. See console for details.";
-  }
+  });
 });
 </script>
 
