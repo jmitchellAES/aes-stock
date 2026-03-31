@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AES Private Inventory App</title>
+
+<!-- MSAL -->
+<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f6f8;
+}
+header {
+  background: #1f2937;
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+nav button {
+  margin-right: 10px;
+}
+button {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.page {
+  display: none;
+  padding: 20px;
+}
+.page.active {
+  display: block;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  text-align: left;
+}
+.low { background: #fff3cd; }
+.critical { background: #f8d7da; }
+.dropzone {
+  border: 2px dashed #999;
+  padding: 30px;
+  background: #fafafa;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: none;
+}
+.modal-content {
+  background: white;
+  margin: 10% auto;
+  padding: 20px;
+  width: 90%;
+  max-width: 900px;
+}
+input[type=number], input[type=text], input[type=date] {
+  width: 100%;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="page active">
+  <h2>AES Inventory System</h2>
+  <button onclick="login()">Sign in with Microsoft</button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+<header>
+  <div>
+    <strong>AES Inventory</strong>
+    <nav>
+      <button onclick="showPage('stock')">Stock</button>
+      <button onclick="showPage('sales')">Sales</button>
+      <button onclick="showPage('physical')">Physical Count</button>
+    </nav>
+  </div>
+  <div id="userInfo"></div>
+</header>
+
+<!-- STOCK PAGE -->
+<div id="stock" class="page active">
+  <h3>Stock Dashboard</h3>
+  <table id="stockTable"></table>
+</div>
+
+<!-- SALES PAGE -->
+<div id="sales" class="page">
+  <h3>Sales / Warehouse Scan</h3>
+
+  <div class="dropzone" id="pdfDrop">
+    Drop signed sales ticket PDFs here
+  </div>
+
+  <table id="salesTable"></table>
+</div>
+
+<!-- PHYSICAL COUNT PAGE -->
+<div id="physical" class="page">
+  <h3>Physical Count</h3>
+  <button onclick="openPhysicalModal()">Start Physical Count</button>
+  <table id="varianceTable"></table>
+</div>
+</div>
+
+<!-- PHYSICAL COUNT MODAL -->
+<div id="physicalModal" class="modal">
+  <div class="modal-content">
+    <h3>Enter Physical Counts</h3>
+    <table id="physicalTable"></table>
+    <button onclick="submitPhysical()">Submit</button>
+    <button onclick="closePhysical()">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* =======================
+   AUTH
+======================= */
+const msal = new msalBrowser.PublicClientApplication({
+  auth: {
+    clientId: "YOUR_CLIENT_ID_HERE",
+    authority: "https://login.microsoftonline.com/YOUR_TENANT_ID_HERE",
+    redirectUri: location.origin
+  }
+});
+
+const allowedUsers = [
+  "jmitchell@allelectricsales.com",
+  "jmarra@allelectricsales.com"
+];
+
+async function login() {
+  const res = await msal.loginPopup({ scopes: ["User.Read"] });
+  if (!allowedUsers.includes(res.account.username.toLowerCase())) {
+    alert("Access denied");
+    return;
+  }
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("userInfo").innerText = res.account.username;
+  renderStock();
+}
+
+/* =======================
+   DATA STORE
+======================= */
+const fixtures = [
+  { id: "FP4", part: "DTF4UZDSW3CCT", reorder: 50 },
+  { id: "GPS-8", part: "GPS8UZDSW4CCT", reorder: 25 }
+];
+
+const receiving = [];
+const sales = [];
+const physicalCounts = [];
+
+function getStock(id) {
+  const r = receiving.filter(x=>x.id===id).reduce((s,x)=>s+x.qty,0);
+  const s = sales.filter(x=>x.id===id)
+    .reduce((sum,x)=>sum + (x.type==="Return" ? -x.qty : x.qty),0);
+  return r - s;
+}
+
+/* =======================
+   STOCK PAGE
+======================= */
+function renderStock() {
+  const t = document.getElementById("stockTable");
+  t.innerHTML = `<tr><th>ID</th><th>Part</th><th>Qty</th><th>Reorder</th></tr>`;
+  fixtures.forEach(f=>{
+    const qty = getStock(f.id);
+    const cls = qty < f.reorder ? "critical" : "";
+    t.innerHTML += `<tr class="${cls}">
+      <td>${f.id}</td>
+      <td>${f.part}</td>
+      <td>${qty}</td>
+      <td>${f.reorder}</td>
+    </tr>`;
+  });
+}
+
+/* =======================
+   SALES + PDF SCAN
+======================= */
+document.getElementById("pdfDrop").addEventListener("dragover", e=>e.preventDefault());
+document.getElementById("pdfDrop").addEventListener("drop", e=>{
+  e.preventDefault();
+  for (const file of e.dataTransfer.files) {
+    fakeWarehouseScan(file);
+  }
+});
+
+function fakeWarehouseScan(file) {
+  // Stub – replace with real OCR / Warehouse Scan
+  const row = {
+    id: "FP4",
+    qty: 10,
+    customer: "Sample Customer",
+    so: "SO12345",
+    date: new Date().toISOString().slice(0,10),
+    confidence: 92
+  };
+  if (row.confidence >= 75) {
+    sales.push({ id: row.id, qty: row.qty, type: "Sale" });
+    renderStock();
+    renderSales();
+  } else {
+    alert("Scan requires review");
+  }
+}
+
+function renderSales() {
+  const t = document.getElementById("salesTable");
+  t.innerHTML = `<tr><th>ID</th><th>Qty</th><th>Type</th></tr>`;
+  sales.forEach(s=>{
+    t.innerHTML += `<tr>
+      <td>${s.id}</td>
+      <td>${s.qty}</td>
+      <td>${s.type}</td>
+    </tr>`;
+  });
+}
+
+/* =======================
+   PHYSICAL COUNT
+======================= */
+function openPhysicalModal() {
+  const t = document.getElementById("physicalTable");
+  t.innerHTML = `<tr><th>ID</th><th>System</th><th>Physical</th></tr>`;
+  fixtures.forEach(f=>{
+    t.innerHTML += `<tr>
+      <td>${f.id}</td>
+      <td>${getStock(f.id)}</td>
+      <td><input type="number" id="phys-${f.id}"></td>
+    </tr>`;
+  });
+  document.getElementById("physicalModal").style.display="block";
+}
+
+function closePhysical() {
+  document.getElementById("physicalModal").style.display="none";
+}
+
+function submitPhysical() {
+  const t = document.getElementById("varianceTable");
+  t.innerHTML = `<tr><th>ID</th><th>System</th><th>Physical</th><th>Variance</th></tr>`;
+  fixtures.forEach(f=>{
+    const p = Number(document.getElementById("phys-"+f.id).value);
+    const s = getStock(f.id);
+    if (p !== s) {
+      t.innerHTML += `<tr class="critical">
+        <td>${f.id}</td>
+        <td>${s}</td>
+        <td>${p}</td>
+        <td>${p - s}</td>
+      </tr>`;
+    }
+  });
+  closePhysical();
+}
+
+/* =======================
+   NAV
+======================= */
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+</script>
+</body>
+</html>
+``
