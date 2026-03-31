@@ -134,7 +134,7 @@ input[type=number], input[type=text], input[type=date] {
 /* =======================
    AUTH
 ======================= */
-const msal = new msalBrowser.PublicClientApplication({
+const msalApp = new msal.PublicClientApplication({
   auth: {
     clientId: "YOUR_CLIENT_ID_HERE",
     authority: "https://login.microsoftonline.com/YOUR_TENANT_ID_HERE",
@@ -148,7 +148,8 @@ const allowedUsers = [
 ];
 
 async function login() {
-  const res = await msal.loginPopup({ scopes: ["User.Read"] });
+  const res = await msalApp.loginPopup({ scopes: ["User.Read"] });
+``
   if (!allowedUsers.includes(res.account.username.toLowerCase())) {
     alert("Access denied");
     return;
