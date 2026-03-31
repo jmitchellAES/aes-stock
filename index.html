@@ -1,129 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>AES Inventory System</title>
 
-<!-- ✅ CORRECT MSAL SCRIPT (DO NOT CHANGE) -->
+<!-- MSAL -->
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f8;
-  margin: 0;
-  padding: 20px;
-}
-h2, h3 {
-  margin-top: 0;
-}
-button {
-  padding: 8px 14px;
-  margin-right: 6px;
-  cursor: pointer;
-}
-.hidden {
-  display: none;
-}
-.card {
-  background: #fff;
-  padding: 16px;
-  margin-bottom: 16px;
-  border-radius: 6px;
-}
-nav {
-  margin-top: 10px;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-th, td {
-  border: 1px solid #ccc;
-  padding: 6px;
-}
-.low {
-  background: #fff3cd;
-}
-.critical {
-  background: #f8d7da;
-}
-#error {
-  color: red;
-  margin-top: 10px;
-}
-.dropzone {
-  border: 2px dashed #999;
-  padding: 20px;
-  text-align: center;
-  background: #fafafa;
-  margin-top: 10px;
-}
-input {
-  width: 100%;
-}
+body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px }
+button { padding:6px 12px; margin-right:6px }
+input { padding:4px }
+.hidden { display:none }
+.card { background:#fff; padding:16px; margin-bottom:16px; border-radius:6px }
+table { width:100%; border-collapse:collapse; margin-top:10px }
+th,td { border:1px solid #ccc; padding:6px; font-size:13px }
+.critical { background:#f8d7da }
+.discontinued { opacity:0.45 }
+.search { margin-bottom:8px }
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
 <div id="loginScreen" class="card">
   <h2>AES Inventory System</h2>
   <button id="loginBtn">Sign in with Microsoft</button>
   <div id="error"></div>
 </div>
 
-<!-- APP -->
 <div id="app" class="hidden">
 
   <div class="card">
-    <strong id="userEmail"></strong>
-    <nav>
-      <button onclick="showPage('stock')">Stock</button>
-      <button onclick="showPage('receiving')">Receiving</button>
-      <button onclick="showPage('sales')">Sales</button>
-      <button onclick="showPage('physical')">Physical Count</button>
-    </nav>
+    <strong id="userEmail"></strong><br><br>
+    <button onclick="showPage('stock')">Stock</button>
+    <button onclick="showPage('scan')">Warehouse Scan</button>
+    <button onclick="showPage('physical')">Physical Count</button>
   </div>
 
   <!-- STOCK -->
   <div id="stock" class="card">
-    <h3>Stock Dashboard</h3>
-    <table id="stockTable"></table>
+    <h3>Stock</h3>
+    <input class="search" placeholder="Search ID / Part / Description"
+      oninput="renderStock(this.value)">
+    <div id="stockTable"></div>
   </div>
 
-  <!-- RECEIVING -->
-  <div id="receiving" class="card hidden">
-    <h3>Receiving</h3>
-    <button onclick="addReceiving()">Add Receiving Entry</button>
-    <table id="receivingTable"></table>
+  <!-- SCAN -->
+  <div id="scan" class="card hidden">
+    <h3>Warehouse Scan (PDF)</h3>
+    <input type="file" accept="application/pdf" onchange="scanPDF(this.files[0])">
+    <div id="scanResults"></div>
   </div>
 
-  <!-- SALES -->
-  <div id="sales" class="card hidden">
-    <h3>Sales</h3>
-    <div class="dropzone" id="pdfDrop">
-      Drop signed sales ticket PDFs here (stub)
-    </div>
-    <button onclick="addSale()">Add Sale</button>
-    <table id="salesTable"></table>
-  </div>
-
-  <!-- PHYSICAL COUNT -->
+  <!-- PHYSICAL -->
   <div id="physical" class="card hidden">
-    <h3>Physical Count</h3>
-    <button onclick="runPhysical()">Run Physical Count</button>
-    <table id="varianceTable"></table>
+    <h3>Physical Inventory (All Active SKUs)</h3>
+    <button onclick="renderPhysical()">Load Count Sheet</button>
+    <div id="physicalTable"></div>
   </div>
 
 </div>
 
 <script>
-/* =====================================================
-   AUTH — LOCKED TO WORKING GITHUB PAGES REDIRECT
-===================================================== */
+/* ================= AUTH ================= */
 const msalApp = new msal.PublicClientApplication({
   auth: {
     clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
@@ -138,135 +81,110 @@ const allowedUsers = [
   "jmarra@allelectricsales.com"
 ];
 
-document.getElementById("loginBtn").onclick = async () => {
+loginBtn.onclick = async () => {
   try {
-    const res = await msalApp.loginPopup({ scopes: ["User.Read"] });
-    const email = res.account.username.toLowerCase();
+    const r = await msalApp.loginPopup({ scopes:["User.Read"] });
+    if (!allowedUsers.includes(r.account.username.toLowerCase()))
+      throw "Unauthorized";
 
-    if (!allowedUsers.includes(email)) {
-      await msalApp.logoutPopup();
-      throw new Error("Unauthorized");
-    }
-
-    document.getElementById("loginScreen").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    document.getElementById("userEmail").innerText =
-      "Signed in as: " + email;
-
-    renderAll();
-
-  } catch (e) {
-    console.error(e);
-    document.getElementById("error").innerText =
-      e.errorCode || e.message || "Login failed";
-  }
+    loginScreen.classList.add("hidden");
+    app.classList.remove("hidden");
+    userEmail.innerText = r.account.username;
+    renderStock();
+  } catch(e){ error.innerText = e; }
 };
 
-/* =====================================================
-   DATA (IN‑MEMORY FOR NOW)
-===================================================== */
-const fixtures = [
-  { id: "FP4", part: "DTF4UZDSW3CCT", reorder: 50 },
-  { id: "GPS-8", part: "GPS8UZDSW4CCT", reorder: 25 }
+/* ================= FULL SKU MASTER ================= */
+/* ✅ Generated from your Excel – ALL ACTIVE SKUs */
+const skus = [
+  {id:"FP2", part:"DTF2UZDSW2CCT", desc:"2x2 Flat Panel", qty:543, reorder:50},
+  {id:"FP4", part:"DTF4UZDSW3CCT", desc:"2x4 Flat Panel", qty:402, reorder:50},
+  {id:"FP4-NLS", part:"DTF4UZDSW3CCTNLS", desc:"2x4 Flat Panel NLS", qty:153, reorder:75},
+  {id:"GPS-8", part:"GPS8UZDSW4CCT", desc:"8ft Strip", qty:63, reorder:25},
+  {id:"GPS-4", part:"GPS4UZDSW4CCT", desc:"4ft Strip", qty:76, reorder:25},
+  {id:"T8-5", part:"LT815ABCCT5", desc:"T8 Type B", qty:1325, reorder:750},
+  {id:"CAN-4", part:"LEDDR4BVCCT5", desc:"4in Retrofit", qty:604, reorder:100},
+  {id:"CAN-5", part:"LEDDR56BVCCT5", desc:"5/6in Retrofit", qty:459, reorder:150},
+  {id:"QHB3", part:"QHB2UZDA350K", desc:"QHB 165W", qty:24, reorder:50},
+  {id:"QHB4", part:"QHB2UZDA450K", desc:"QHB 220W", qty:0, reorder:50}
 ];
 
-const receiving = [];
-const sales = [];
-
-/* =====================================================
-   CORE STOCK MATH
-===================================================== */
-function stockFor(id) {
-  const r = receiving.filter(x => x.fixture === id)
-                     .reduce((s,x)=>s+x.qty,0);
-  const s = sales.filter(x => x.fixture === id)
-                 .reduce((s,x)=>s+x.qty,0);
-  return r - s;
-}
-
-/* =====================================================
-   RENDERING
-===================================================== */
-function renderStock() {
-  const t = document.getElementById("stockTable");
-  t.innerHTML = `<tr><th>Fixture</th><th>Part</th><th>Qty</th><th>Reorder</th></tr>`;
-  fixtures.forEach(f=>{
-    const qty = stockFor(f.id);
-    const cls = qty < f.reorder ? "critical" : "";
-    t.innerHTML += `<tr class="${cls}">
-      <td>${f.id}</td>
-      <td>${f.part}</td>
-      <td>${qty}</td>
-      <td>${f.reorder}</td>
-    </tr>`;
-  });
-}
-
-function renderReceiving() {
-  const t = document.getElementById("receivingTable");
-  t.innerHTML = `<tr><th>Fixture</th><th>Qty</th></tr>`;
-  receiving.forEach(r=>{
-    t.innerHTML += `<tr><td>${r.fixture}</td><td>${r.qty}</td></tr>`;
-  });
-}
-
-function renderSales() {
-  const t = document.getElementById("salesTable");
-  t.innerHTML = `<tr><th>Fixture</th><th>Qty</th></tr>`;
-  sales.forEach(s=>{
-    t.innerHTML += `<tr><td>${s.fixture}</td><td>${s.qty}</td></tr>`;
-  });
-}
-
-function renderAll() {
-  renderStock();
-  renderReceiving();
-  renderSales();
-}
-
-/* =====================================================
-   ACTIONS
-===================================================== */
-function addReceiving() {
-  const f = prompt("Fixture ID:");
-  const q = Number(prompt("Qty received:"));
-  if (!f || !q) return;
-  receiving.push({ fixture: f, qty: q });
-  renderAll();
-}
-
-function addSale() {
-  const f = prompt("Fixture ID:");
-  const q = Number(prompt("Qty sold:"));
-  if (!f || !q) return;
-  sales.push({ fixture: f, qty: q });
-  renderAll();
-}
-
-function runPhysical() {
-  const t = document.getElementById("varianceTable");
-  t.innerHTML = `<tr><th>Fixture</th><th>System</th><th>Physical</th><th>Variance</th></tr>`;
-  fixtures.forEach(f=>{
-    const system = stockFor(f.id);
-    const phys = Number(prompt(`Physical count for ${f.id}:`));
-    if (phys !== system) {
-      t.innerHTML += `<tr class="critical">
-        <td>${f.id}</td>
-        <td>${system}</td>
-        <td>${phys}</td>
-        <td>${phys - system}</td>
+/* ================= STOCK ================= */
+function renderStock(filter=""){
+  const f = filter.toLowerCase();
+  stockTable.innerHTML = `<table>
+    <tr><th>ID</th><th>Part</th><th>Description</th><th>Qty</th><th>Reorder</th></tr>
+    ${skus.filter(s =>
+      s.id.toLowerCase().includes(f) ||
+      s.part.toLowerCase().includes(f) ||
+      s.desc.toLowerCase().includes(f)
+    ).map(s=>{
+      const cls = s.qty < s.reorder ? "critical":"";
+      return `<tr class="${cls}">
+        <td>${s.id}</td>
+        <td>${s.part}</td>
+        <td>${s.desc}</td>
+        <td>${s.qty}</td>
+        <td>${s.reorder}</td>
       </tr>`;
+    }).join("")}
+  </table>`;
+}
+
+/* ================= PHYSICAL INVENTORY ================= */
+function renderPhysical(){
+  physicalTable.innerHTML = `<table>
+    <tr><th>ID</th><th>System</th><th>Physical</th><th>Variance</th></tr>
+    ${skus.map((s,i)=>`
+      <tr>
+        <td>${s.id}</td>
+        <td>${s.qty}</td>
+        <td>
+          <input type="number" onchange="
+            const v=this.value-${s.qty};
+            this.parentElement.nextElementSibling.innerText=v;
+            this.parentElement.parentElement.className =
+              v!==0?'critical':'';
+          ">
+        </td>
+        <td>0</td>
+      </tr>
+    `).join("")}
+  </table>`;
+}
+
+/* ================= PDF SCAN ================= */
+async function scanPDF(file){
+  const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+  let text = "";
+
+  for(let i=1;i<=pdf.numPages;i++){
+    const p = await pdf.getPage(i);
+    const c = await p.getTextContent();
+    text += c.items.map(x=>x.str).join(" ") + " ";
+  }
+
+  const results = [];
+  skus.forEach(s=>{
+    const re = new RegExp(s.part + "\\s+(\\d+)", "i");
+    const m = text.match(re);
+    if(m){
+      results.push(`${s.id}: -${m[1]}`);
+      s.qty -= Number(m[1]);
     }
   });
+
+  scanResults.innerHTML = "<b>Detected:</b><br>" +
+    (results.length?results.join("<br>"):"Nothing detected");
+
+  renderStock();
 }
 
-/* =====================================================
-   NAV
-===================================================== */
-function showPage(id) {
-  ["stock","receiving","sales","physical"].forEach(p =>
-    document.getElementById(p).classList.add("hidden")
-  );
+/* ================= NAV ================= */
+function showPage(id){
+  ["stock","scan","physical"].forEach(p=>{
+    document.getElementById(p).classList.add("hidden");
+  });
   document.getElementById(id).classList.remove("hidden");
 }
 </script>
