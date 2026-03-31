@@ -4,14 +4,11 @@
 <meta charset="UTF-8">
 <title>AES Inventory System</title>
 
-<!-- MSAL -->
+<!-- ✅ MSAL -->
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
-<!-- SheetJS (Excel import) -->
+<!-- ✅ SheetJS for Excel import -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px }
@@ -23,6 +20,7 @@ table { width:100%; border-collapse:collapse; margin-top:10px }
 th,td { border:1px solid #ccc; padding:6px; font-size:13px }
 .critical { background:#f8d7da }
 nav button { margin-bottom:6px }
+.status { margin-top:10px; font-weight:bold }
 </style>
 </head>
 
@@ -49,23 +47,18 @@ nav button { margin-bottom:6px }
     </nav>
   </div>
 
-  <!-- STOCK -->
   <div id="stock" class="card"></div>
-
-  <!-- RECEIVING -->
   <div id="receiving" class="card hidden"></div>
-
-  <!-- SALES -->
   <div id="sales" class="card hidden"></div>
-
-  <!-- PHYSICAL -->
   <div id="physical" class="card hidden"></div>
 
   <!-- ADMIN -->
   <div id="admin" class="card hidden">
-    <h3>One‑Time SKU Import (Excel)</h3>
-    <input type="file" accept=".xlsx,.xls" onchange="importExcel(this.files[0])">
-    <p><b>Use once. After this, Excel is no longer required.</b></p>
+    <h3>One‑Time Excel Import (Retire Excel)</h3>
+    <input id="excelInput" type="file" accept=".xlsx,.xls"
+           onchange="importExcel(this.files[0])">
+    <div id="importStatus" class="status"></div>
+    <p><b>After successful import, Excel is no longer required.</b></p>
   </div>
 
 </div>
@@ -117,21 +110,36 @@ function stockFor(id){
 
 /* ================= EXCEL IMPORT ================= */
 function importExcel(file){
+  if(!file) return;
+
+  importStatus.innerText="⏳ Importing Excel…";
+
   const reader=new FileReader();
   reader.onload=e=>{
     const wb=XLSX.read(e.target.result,{type:"binary"});
     const sheet=wb.Sheets[wb.SheetNames[0]];
     const rows=XLSX.utils.sheet_to_json(sheet);
+
+    if(!rows.length){
+      importStatus.innerText="❌ No rows found.";
+      return;
+    }
+
     skus = rows.map(r=>({
-      id:r.ID,
-      part:r.Part,
-      desc:r.Description,
+      id:String(r.ID||"").trim(),
+      part:String(r.Part||"").trim(),
+      desc:String(r.Description||"").trim(),
       qty:Number(r.Qty||0),
       reorder:Number(r.Reorder||0)
-    }));
+    })).filter(s=>s.id);
+
     save();
-    alert("All SKUs imported. Excel no longer needed.");
     renderAll();
+
+    importStatus.innerText =
+      `✅ Imported ${skus.length} SKUs successfully. Excel is retired.`;
+
+    excelInput.disabled=true;
   };
   reader.readAsBinaryString(file);
 }
@@ -162,19 +170,17 @@ function renderStockFilter(f){
 }
 
 function renderReceiving(){
-  receivingDiv=`<h3>Receiving</h3>
+  receiving.innerHTML=`<h3>Receiving</h3>
   <select id="rSku">${skus.map(s=>`<option>${s.id}</option>`).join("")}</select>
   <input type="number" id="rQty" placeholder="Qty">
   <button onclick="receiving.push({id:rSku.value,qty:+rQty.value});save();renderAll()">Add</button>`;
-  receiving.innerHTML=receivingDiv;
 }
 
 function renderSales(){
-  salesDiv=`<h3>Sales / Data</h3>
+  sales.innerHTML=`<h3>Sales / Data</h3>
   <select id="sSku">${skus.map(s=>`<option>${s.id}</option>`).join("")}</select>
   <input type="number" id="sQty" placeholder="Qty">
   <button onclick="sales.push({id:sSku.value,qty:+sQty.value});save();renderAll()">Add</button>`;
-  sales.innerHTML=salesDiv;
 }
 
 function renderPhysical(){
@@ -210,10 +216,6 @@ function showPage(id){
   document.getElementById(id).classList.remove("hidden");
 }
 </script>
-
-</body>
-</html>
-``
 
 </body>
 </html>
