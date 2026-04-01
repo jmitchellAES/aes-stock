@@ -305,6 +305,19 @@ function esc(s){
 function norm(s){ return String(s ?? "").trim().toLowerCase(); }
 function upper(s){ return String(s ?? "").trim().toUpperCase(); }
 function num(v){
+  function excelDateToISO(v){
+  if (v === null || v === undefined || v === "") return "";
+
+  // Excel numeric date (e.g. 45139)
+  if (typeof v === "number" && isFinite(v)) {
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(epoch.getTime() + v * 86400000);
+    return d.toISOString().slice(0, 10); // yyyy-mm-dd
+  }
+
+  // Already a string
+  return String(v).trim();
+}
   if (v === null || v === undefined) return 0;
   const n = parseFloat(String(v).replace(/[$,]/g,"").trim());
   return isFinite(n) ? n : 0;
@@ -430,7 +443,7 @@ function parseTransfersRows(rows){
 function parseSalesRows(rows){
   return rows.map(r=>{
     const part = String(getByHeader(r,"Part Number")).trim();
-    const date = String(getByHeader(r,"Date")).trim();
+    const date = excelDateToISO(getByHeader(r,"Date"));
     const id = String(getByHeader(r,"Type")).trim();
     const qtyRaw = num(getByHeader(r,"Qty Sold"));
     const priceText = String(getByHeader(r,"Price Sold") ?? "").trim();
