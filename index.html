@@ -5,186 +5,282 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AES Inventory System</title>
 
+  <!-- ✅ MSAL (Microsoft Sign-in) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+
   <style>
     :root{
-      --bg:#f4f6f8; --card:#fff; --ink:#0f172a; --muted:#64748b;
-      --line:#e2e8f0; --soft:#f8fafc; --accent:#2563eb;
-      --bad:#dc2626; --good:#16a34a; --shadow:0 10px 25px rgba(0,0,0,.08);
-      --radius:14px;
+      --bg:#ffffff;
+      --page:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#e2e8f0;
+      --soft:#f8fafc;
+      --accent:#2563eb;
+      --bad:#dc2626;
+      --warn:#f59e0b;
+      --good:#16a34a;
+      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --radius: 14px;
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-    header{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;gap:12px;align-items:center}
-    .brand{display:flex;gap:10px;align-items:center;min-width:240px}
-    .brand img{height:34px;width:auto;display:block}
-    .who{display:flex;flex-direction:column;line-height:1.1}
-    .who .name{font-weight:900;font-size:13px}
-    .who .email{font-size:11px;color:var(--muted)}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .tab{padding:9px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:13px}
-    .tab.active{background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.25);font-weight:900;color:#1e3a8a}
-    main{max-width:1280px;margin:0 auto;padding:16px}
-    .page{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;display:none}
-    .page.active{display:block}
-    .pageHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-    .pageHeader h2{margin:0;font-size:14px;letter-spacing:.2px;text-transform:uppercase}
-    .sub{margin:0;font-size:12px;color:var(--muted)}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+    /* Login screen */
+    .loginShell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+    .loginCard{
+      width:min(520px,92vw);
+      background:var(--page);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:28px 22px;
+      box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .loginCard img{height:56px;width:auto;display:block;margin:0 auto 10px}
+    .loginTitle{font-size:22px;font-weight:900;margin:6px 0 16px}
     .btn{border:1px solid var(--line);background:var(--soft);color:var(--ink);padding:10px 14px;border-radius:12px;cursor:pointer;font-size:13px}
     .btnPrimary{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.25);color:#1e3a8a;font-weight:800}
     .btnDanger{background:rgba(220,38,38,.10);border-color:rgba(220,38,38,.25);color:#7f1d1d;font-weight:800}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-    input{border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;background:#fff;outline:none}
+    .err{color:var(--bad);font-size:12px;margin-top:10px;white-space:pre-wrap}
+
+    /* App shell */
+    .appShell{min-height:100vh;background:var(--bg)}
+    header{
+      position:sticky;top:0;z-index:50;
+      background:var(--page);
+      border-bottom:1px solid var(--line);
+      padding:12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand{display:flex;align-items:center;gap:10px;min-width:220px}
+    .brand img{height:34px;width:auto;display:block}
+    .brand .who{display:flex;flex-direction:column;line-height:1.1}
+    .brand .who .name{font-weight:900;font-size:13px}
+    .brand .who .email{font-size:11px;color:var(--muted)}
+
+    .hamburger{
+      width:42px;height:38px;border:1px solid var(--line);border-radius:12px;background:var(--soft);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+    }
+    .hamburger .lines{width:18px;height:12px;display:flex;flex-direction:column;justify-content:space-between}
+    .hamburger .lines span{display:block;height:2px;background:#334155;border-radius:999px}
+    .menu{
+      position:absolute;top:48px;right:0;width:240px;background:var(--page);border:1px solid var(--line);
+      border-radius:14px;box-shadow:var(--shadow);padding:8px;display:none;
+    }
+    .menu.open{display:block}
+    .menu button{
+      width:100%;text-align:left;padding:10px 10px;border-radius:10px;border:1px solid transparent;background:transparent;
+      cursor:pointer;font-size:13px;color:var(--ink);
+    }
+    .menu button:hover{background:var(--soft);border-color:var(--line)}
+    .menu .sep{height:1px;background:var(--line);margin:6px 0}
+    main{max-width:1280px;margin:0 auto;padding:16px}
+    .page{background:var(--page);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;display:none}
+    .page.active{display:block}
+    .pageHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .pageHeader h2{margin:0;font-size:14px;letter-spacing:.2px;text-transform:uppercase}
+    .sub{margin:0;font-size:12px;color:var(--muted)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,select,textarea{border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;outline:none;background:#fff}
+    input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+    .w220{width:220px}
     .w320{width:320px}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.18);color:#1e3a8a;font-size:11px;font-weight:800}
-    .status{font-weight:900;margin-top:10px;white-space:pre-wrap}
-    .ok{color:var(--good)} .bad{color:var(--bad)}
     table{width:100%;border-collapse:separate;border-spacing:0 8px}
     th{font-size:11px;color:var(--muted);text-align:left;padding:0 8px}
     td{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px;font-size:13px;vertical-align:middle}
     tr td:first-child{border-left:1px solid var(--line);border-radius:12px 0 0 12px}
     tr td:last-child{border-right:1px solid var(--line);border-radius:0 12px 12px 0}
     .right{text-align:right}
-    .loginShell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-    .loginCard{width:min(520px,92vw);background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px 22px;box-shadow:var(--shadow);text-align:center}
-    .loginCard img{height:56px;width:auto;display:block;margin:0 auto 10px}
-    .loginTitle{font-size:22px;font-weight:900;margin:6px 0 16px}
-    .err{color:var(--bad);font-size:12px;margin-top:10px;white-space:pre-wrap}
-    code{background:#f1f5f9;padding:1px 6px;border-radius:8px}
+    .badRow td{background:rgba(220,38,38,.06)}
+    .ok{color:var(--good);font-weight:800}
+    .bad{color:var(--bad);font-weight:900}
+    .status{font-weight:900;margin-top:10px;white-space:pre-wrap}
+
+    /* Modal */
+    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:200}
+    .modalOverlay.open{display:flex}
+    .modal{width:min(980px,95vw);max-height:85vh;overflow:auto;background:var(--page);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px}
+    .modalHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+    .modalHeader h3{margin:0;font-size:14px;text-transform:uppercase;letter-spacing:.2px}
+    .closeX{border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:8px 10px;cursor:pointer}
+    .small{font-size:11px;color:var(--muted)}
   </style>
 </head>
 
 <body>
+
 <!-- LOGIN -->
 <div id="loginView" class="loginShell">
   <div class="loginCard">
-    <img src="aes-logo.png" alt="AES" onerror="this.style.display='none'">
+    <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
     <div class="loginTitle">AES Inventory System</div>
-    <button id="btnEnter" class="btn btnPrimary">Enter App</button>
-    <div class="sub" style="margin-top:10px;">
-      (Auth is temporarily off while we validate imports. We’ll add MSAL back after.)
-    </div>
+    <button id="btnLogin" class="btn btnPrimary">Sign in with Microsoft</button>
     <div id="loginError" class="err"></div>
+    <div id="loginLib" class="small" style="margin-top:10px;"></div>
   </div>
 </div>
 
 <!-- APP -->
-<div id="appView" style="display:none;">
+<div id="appView" class="appShell" style="display:none;">
   <header>
     <div class="brand">
-      <img src="aes-logo.png" alt="AES" onerror="this.style.display='none'">
+      <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
       <div class="who">
         <div class="name">AES Inventory System</div>
-        <div class="email" id="whoEmail">Local Mode</div>
+        <div class="email" id="whoEmail">—</div>
       </div>
     </div>
 
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-page="inventory">Inventory</button>
-      <button class="tab" data-page="transfers">Transfers</button>
-      <button class="tab" data-page="sales">Sales / Data</button>
-      <button class="tab" data-page="admin">Admin</button>
+    <div class="hamburger" id="hamburgerBtn" title="Menu">
+      <div class="lines"><span></span><span></span><span></span></div>
+      <div class="menu" id="menu">
+        <button data-page="inventory">Inventory</button>
+        <button data-page="transfers">Transfers</button>
+        <button data-page="data">Data</button>
+        <button data-page="month">Month Breakdown</button>
+        <button data-page="analyzed">Analyzed</button>
+        <div class="sep"></div>
+        <button id="btnExport">Export JSON Backup</button>
+        <button id="btnOpenImport">Import JSON Backup</button>
+        <button id="btnReset" class="btnDanger">Reset Local Data</button>
+        <div class="sep"></div>
+        <button id="btnLogout" class="btnDanger">Sign out</button>
+      </div>
     </div>
   </header>
 
   <main>
-    <!-- INVENTORY -->
+    <!-- Inventory -->
     <section id="page-inventory" class="page active">
       <div class="pageHeader">
         <div>
           <h2>Inventory</h2>
-          <p class="sub">Calculated: Inventory = Transfers (net) − Sales (net).</p>
+          <p class="sub">Inventory = Transfers (net) − Data (net). Only Reorder Level is editable.</p>
         </div>
-        <div class="row">
+        <div class="actions">
           <span class="pill" id="pillSkuCount">0 SKUs</span>
-          <input id="invSearch" class="w320" placeholder="Search Part Number">
+          <input id="invSearch" class="w320" placeholder="Search Type / Part / Description">
+          <button class="btn" id="btnCatalog">Edit Catalog (Type/Desc/Pallet/Reorder)</button>
         </div>
       </div>
       <div id="inventoryTable"></div>
-      <div class="status" id="inventoryStatus"></div>
+      <div id="inventoryStatus" class="status"></div>
     </section>
 
-    <!-- TRANSFERS -->
+    <!-- Transfers -->
     <section id="page-transfers" class="page">
       <div class="pageHeader">
         <div>
-          <h2>Transfers Ledger</h2>
-          <p class="sub">From your Transfers Excel headers. [2](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B6C9B8DEA-1269-44F5-A11C-66DAEBDF71A9%7D&file=Transfers_History.xlsx&action=default&mobileredirect=true)</p>
+          <h2>Transfers</h2>
+          <p class="sub">Imported ledger + optional manual adds (PDF parsing placeholder).</p>
         </div>
-        <div class="row">
-          <span class="pill" id="pillTransferCount">0 rows</span>
+        <div class="actions">
+          <input id="trSearch" class="w320" placeholder="Search Transfer # / Part / Notes">
+          <button class="btn" id="btnTransferManual">Manual</button>
+          <button class="btn" id="btnTransferPdf" disabled>Download (PDF)</button>
         </div>
       </div>
       <div id="transfersTable"></div>
     </section>
 
-    <!-- SALES -->
-    <section id="page-sales" class="page">
+    <!-- Data -->
+    <section id="page-data" class="page">
       <div class="pageHeader">
         <div>
-          <h2>Sales / Data Ledger</h2>
-          <p class="sub">From your Sales/Data Excel headers. [3](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B2BEEC8FF-F4C9-43BE-A892-C959DD9CAF86%7D&file=Sales_Data_History.xlsx&action=default&mobileredirect=true)</p>
+          <h2>Data</h2>
+          <p class="sub">Imported ledger + optional manual adds (Warehouse Scan PDF parsing later).</p>
         </div>
-        <div class="row">
-          <span class="pill" id="pillSalesCount">0 rows</span>
+        <div class="actions">
+          <input id="dataSearch" class="w320" placeholder="Search Part / SO / Distributor">
+          <button class="btn" id="btnDataManual">Manual</button>
+          <button class="btn" id="btnDataPdf" disabled>Download (PDF)</button>
         </div>
       </div>
-      <div id="salesTable"></div>
+      <div id="dataTable"></div>
     </section>
 
-    <!-- ADMIN -->
+    <!-- Month Breakdown -->
+    <section id="page-month" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Month Breakdown</h2>
+          <p class="sub">Uses imported Data ledger.</p>
+        </div>
+      </div>
+      <div class="small">Coming next: we’ll match your spreadsheet format exactly.</div>
+    </section>
+
+    <!-- Analyzed -->
+    <section id="page-analyzed" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Analyzed</h2>
+          <p class="sub">Filters + charts (coming next). Data already stored correctly.</p>
+        </div>
+      </div>
+      <div class="small">Coming next: interactive filters + graphs.</div>
+    </section>
+
+    <!-- Admin (kept as a page but accessed from menu) -->
     <section id="page-admin" class="page">
       <div class="pageHeader">
         <div>
           <h2>Admin</h2>
-          <p class="sub">Import full history ledgers. Export JSON backup for portability.</p>
+          <p class="sub">Import the two Excel history files. This is the proven workflow.</p>
         </div>
-      </div>
-
-      <div class="row" style="margin-bottom:10px;">
-        <div class="pill">Library status: <span id="libStatus">loading…</span></div>
+        <div class="actions">
+          <span class="pill">Libraries: <span id="libStatus">loading…</span></span>
+        </div>
       </div>
 
       <div class="row" style="margin-bottom:8px;">
         <input id="fileTransfers" type="file" accept=".xlsx,.xls" class="w320">
         <button class="btn btnPrimary" id="btnImportTransfers">Import Transfers Excel (Replace)</button>
       </div>
-
       <div class="row" style="margin-bottom:8px;">
         <input id="fileSales" type="file" accept=".xlsx,.xls" class="w320">
-        <button class="btn btnPrimary" id="btnImportSales">Import Sales/Data Excel (Replace)</button>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button class="btn" id="btnExportJson">Export JSON Backup</button>
-        <input id="fileImportJson" type="file" accept="application/json" class="w320">
-        <button class="btn" id="btnImportJson">Import JSON Backup</button>
-        <button class="btn btnDanger" id="btnReset">Reset Local Data</button>
+        <button class="btn btnPrimary" id="btnImportSales">Import Data Excel (Replace)</button>
       </div>
 
       <div id="adminStatus" class="status"></div>
-
-      <div class="sub" style="margin-top:12px;">
-        <div><b>Transfers required headers:</b> Transfer Number, Part Number, Type, Tracking Number, Quantity, ESD, Arrived, Notes [2](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B6C9B8DEA-1269-44F5-A11C-66DAEBDF71A9%7D&file=Transfers_History.xlsx&action=default&mobileredirect=true)</div>
-        <div><b>Sales required headers:</b> Part Number, Date, Type, Qty Sold, Price Sold, PO Number, Customer, Total, Monthly Sale [3](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B2BEEC8FF-F4C9-43BE-A892-C959DD9CAF86%7D&file=Sales_Data_History.xlsx&action=default&mobileredirect=true)</div>
+      <div class="small" style="margin-top:10px;">
+        Transfers headers: Transfer Number, Part Number, Type, Tracking Number, Quantity, ESD, Arrived, Notes<br>
+        Data headers: Part Number, Date, Type, Qty Sold, Price Sold, PO Number, Customer, Total, Monthly Sale
       </div>
     </section>
   </main>
 </div>
 
+<!-- MODAL -->
+<div id="modalOverlay" class="modalOverlay">
+  <div class="modal">
+    <div class="modalHeader">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="closeX" id="modalClose">Close</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
 <script>
 "use strict";
 
-/* ========= XLSX Loader (local -> SheetJS CDN -> cdnjs -> jsDelivr) =========
-   - SheetJS CDN is the authoritative source for standalone scripts. [1](https://docs.sheetjs.com/docs/getting-started/installation/standalone/)
-   - cdnjs provides xlsx.full.min.js hosted by Cloudflare. [4](https://cdnjs.com/libraries/xlsx)
-   - jsDelivr alternative is available. [5](https://www.jsdelivr.com/package/npm/xlsx)
-*/
+/* =========================================================
+   1) XLSX LOADER (the part you debugged and proved)
+========================================================= */
 const XLSX_SOURCES = [
-  "./xlsx.full.min.js", // optional vendored local copy (recommended for stability) [1](https://docs.sheetjs.com/docs/getting-started/installation/standalone/)
-  "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js", // [1](https://docs.sheetjs.com/docs/getting-started/installation/standalone/)
-  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", // [4](https://cdnjs.com/libraries/xlsx)
-  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" // [5](https://www.jsdelivr.com/package/npm/xlsx)
+  "./xlsx.full.min.js", // optional vendored copy if you drop it in the repo
+  "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
 ];
 
 function loadScript(url){
@@ -197,7 +293,6 @@ function loadScript(url){
     document.head.appendChild(s);
   });
 }
-
 async function ensureXLSX(){
   if(typeof XLSX === "object") return "already loaded";
   const errs = [];
@@ -210,11 +305,15 @@ async function ensureXLSX(){
   throw new Error("All XLSX sources failed:\n" + errs.join("\n"));
 }
 
-/* ========================= Helpers ========================= */
+/* =========================================================
+   2) HELPERS (clean + safe)
+========================================================= */
 function esc(s){
   return String(s ?? "")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;")
-    .replaceAll(">","&gt;").replaceAll('"',"&quot;");
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
 }
 function norm(s){ return String(s ?? "").trim().toLowerCase(); }
 function upper(s){ return String(s ?? "").trim().toUpperCase(); }
@@ -223,37 +322,124 @@ function num(v){
   const n = parseFloat(String(v).replace(/[$,]/g,"").trim());
   return isFinite(n) ? n : 0;
 }
-function fmtDateMaybe(v){ return String(v ?? "").trim(); }
 
-/* ========================= Storage ========================= */
-const KEY = {
-  meta: "aes_meta_v7",
-  transfers: "aes_transfers_v7",
-  sales: "aes_sales_v7"
+/* =========================================================
+   3) MSAL (Popup sign-in gate, does not touch your XLSX logic)
+========================================================= */
+const baseRedirect = (()=>{
+  // Ensures GitHub Pages subpath is preserved: origin + pathname directory
+  const url = new URL(window.location.href);
+  let path = url.pathname;
+  // If user is at /something/index.html, redirect should be /something/
+  if(path.toLowerCase().endsWith("index.html")) path = path.slice(0, -("index.html".length));
+  if(!path.endsWith("/")) path += "/";
+  return url.origin + path;
+})();
+
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
+    authority: "https://login.microsoftonline.com/organizations",
+    redirectUri: baseRedirect
+  },
+  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
 };
+
+const ALLOWED_USERS = [
+  "jmitchell@allelectricsales.com",
+  "jmarra@allelectricsales.com"
+];
+
+const msalApp = new msal.PublicClientApplication(MSAL_CONFIG);
+
+async function signIn(){
+  const loginError = document.getElementById("loginError");
+  loginError.textContent = "";
+  try{
+    // handleRedirectPromise is safe even if you only use popup
+    await msalApp.handleRedirectPromise().catch(()=>{});
+
+    const res = await msalApp.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
+    const email = (res.account?.username || "").toLowerCase();
+
+    if(!ALLOWED_USERS.includes(email)){
+      await msalApp.logoutPopup();
+      throw new Error("Access denied for " + email);
+    }
+
+    msalApp.setActiveAccount(res.account);
+    startApp(email);
+  }catch(err){
+    console.error(err);
+    loginError.textContent = err.errorCode || err.message || String(err);
+  }
+}
+
+async function tryRestoreSession(){
+  try{
+    await msalApp.handleRedirectPromise().catch(()=>{});
+    const accounts = msalApp.getAllAccounts();
+    if(!accounts || !accounts.length) return false;
+
+    // pick an allowed account if present
+    const acct = accounts.find(a => ALLOWED_USERS.includes((a.username||"").toLowerCase()));
+    if(!acct) return false;
+
+    msalApp.setActiveAccount(acct);
+    startApp((acct.username||"").toLowerCase());
+    return true;
+  }catch{
+    return false;
+  }
+}
+
+async function signOut(){
+  try{
+    await msalApp.logoutPopup();
+  }catch(e){
+    console.error(e);
+  } finally {
+    // hard reset UI
+    document.getElementById("appView").style.display = "none";
+    document.getElementById("loginView").style.display = "flex";
+    document.getElementById("whoEmail").textContent = "—";
+  }
+}
+
+/* =========================================================
+   4) STORAGE (your proven two-ledger model)
+========================================================= */
+const KEY = {
+  meta: "aes_meta_v8",
+  transfers: "aes_transfers_v8",
+  sales: "aes_sales_v8",
+  catalog: "aes_catalog_v8"
+};
+
 function loadJSON(key, fallback){
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch{ return fallback; }
 }
 function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
 
 let meta = loadJSON(KEY.meta, { transfersImportedAt:null, salesImportedAt:null });
 let transfers = loadJSON(KEY.transfers, []);
 let sales = loadJSON(KEY.sales, []);
+let catalog = loadJSON(KEY.catalog, {}); // partNumber -> {type, description, palletCaseQty, reorderLevel}
+
 function persist(){
   saveJSON(KEY.meta, meta);
   saveJSON(KEY.transfers, transfers);
   saveJSON(KEY.sales, sales);
+  saveJSON(KEY.catalog, catalog);
 }
 
-/* ========================= Excel Parse (exact headers) =========================
-   Transfers headers: Transfer Number, Part Number, Type, Tracking Number, Quantity, ESD, Arrived, Notes [2](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B6C9B8DEA-1269-44F5-A11C-66DAEBDF71A9%7D&file=Transfers_History.xlsx&action=default&mobileredirect=true)
-   Sales headers: Part Number, Date, Type, Qty Sold, Price Sold, PO Number, Customer, Total, Monthly Sale [3](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B2BEEC8FF-F4C9-43BE-A892-C959DD9CAF86%7D&file=Sales_Data_History.xlsx&action=default&mobileredirect=true)
-*/
+/* =========================================================
+   5) PARSERS (exact headers)
+========================================================= */
 function getByHeader(row, header){
-  const keys = Object.keys(row);
   const want = norm(header);
-  for(const k of keys){
+  for(const k of Object.keys(row)){
     if(norm(k) === want) return row[k];
   }
   return "";
@@ -266,166 +452,313 @@ function parseTransfersRows(rows){
     const type = String(getByHeader(r,"Type")).trim();
     const tracking = String(getByHeader(r,"Tracking Number")).trim();
     const qty = num(getByHeader(r,"Quantity"));
-    const esd = fmtDateMaybe(getByHeader(r,"ESD"));
+    const esd = String(getByHeader(r,"ESD")).trim();
     const arrived = String(getByHeader(r,"Arrived")).trim();
     const notes = String(getByHeader(r,"Notes")).trim();
-    return { transferNo, partNumber: part, type, tracking, quantity: qty, date: esd, arrived, notes };
+    return { transferNo, partNumber: part, type, tracking, quantity: qty, arrivalDate: esd, arrived, notes };
   }).filter(x=>x.partNumber);
 }
 
 function parseSalesRows(rows){
   return rows.map(r=>{
     const part = String(getByHeader(r,"Part Number")).trim();
-    const date = fmtDateMaybe(getByHeader(r,"Date"));
-    const type = String(getByHeader(r,"Type")).trim();
+    const date = String(getByHeader(r,"Date")).trim();
+    const id = String(getByHeader(r,"Type")).trim(); // OBS-xx / IDs
     const qtyRaw = num(getByHeader(r,"Qty Sold"));
-    const priceSoldRaw = getByHeader(r,"Price Sold");
-    const priceSoldText = String(priceSoldRaw ?? "").trim();
-    const po = String(getByHeader(r,"PO Number")).trim();
-    const customer = String(getByHeader(r,"Customer")).trim();
+    const priceRaw = getByHeader(r,"Price Sold");
+    const priceText = String(priceRaw ?? "").trim();
+    const so = String(getByHeader(r,"PO Number")).trim();
+    const distributor = String(getByHeader(r,"Customer")).trim();
     const total = num(getByHeader(r,"Total"));
-    const month = String(getByHeader(r,"Monthly Sale")).trim();
 
-    const isReturn = norm(priceSoldText).includes("return") || norm(customer)==="return";
+    const isReturn = norm(priceText).includes("return") || norm(distributor) === "return";
     const signedQty = isReturn ? -Math.abs(qtyRaw) : Math.abs(qtyRaw);
 
-    const unitPrice = (priceSoldText !== "" && isFinite(parseFloat(priceSoldText))) ? num(priceSoldText) : null;
-    const priceLabel = (unitPrice === null) ? priceSoldText : "";
+    const unitCost = (priceText !== "" && isFinite(parseFloat(priceText))) ? num(priceText) : null;
+    const costLabel = (unitCost === null) ? priceText : "";
 
-    return { partNumber: part, date, type, qty: signedQty, unitPrice, priceLabel, poNumber: po, customer, total, month, isReturn };
+    return { partNumber: part, date, id, quantity: signedQty, unitCost, costLabel, so, distributor, total, isReturn };
   }).filter(x=>x.partNumber);
 }
 
-/* ========================= Inventory math ========================= */
+/* =========================================================
+   6) INVENTORY MATH (ledger-based)
+   Inventory = sum(transfers.quantity) - sum(data.quantity)
+   Where data.quantity is signed: returns negative -> subtracting negative adds back.
+========================================================= */
 function computeInventoryMap(){
-  const map = new Map();
+  const map = new Map(); // PART -> {transferredNet, soldNet, onHand}
   const ensure = (p)=>{
     const key = upper(p);
     if(!map.has(key)) map.set(key, { partNumber:key, transferredNet:0, soldNet:0, onHand:0 });
     return map.get(key);
   };
+
   transfers.forEach(t=>{
     const rec = ensure(t.partNumber);
     rec.transferredNet += num(t.quantity);
   });
+
   sales.forEach(s=>{
     const rec = ensure(s.partNumber);
-    rec.soldNet += num(s.qty);
+    rec.soldNet += num(s.quantity);
   });
+
   for(const rec of map.values()){
     rec.onHand = rec.transferredNet - rec.soldNet;
   }
   return map;
 }
 
-/* ========================= Render ========================= */
-function setActiveTab(page){
-  document.querySelectorAll(".tab").forEach(b=> b.classList.toggle("active", b.dataset.page===page));
-  document.querySelectorAll(".page").forEach(p=> p.classList.remove("active"));
-  document.getElementById(`page-${page}`).classList.add("active");
+/* =========================================================
+   7) UI: Menu / Modal
+========================================================= */
+const menu = document.getElementById("menu");
+document.getElementById("hamburgerBtn").onclick = (e)=>{ menu.classList.toggle("open"); e.stopPropagation(); };
+document.addEventListener("click", ()=> menu.classList.remove("open"));
+menu.addEventListener("click",(e)=>{
+  const btn = e.target.closest("button[data-page]");
+  if(!btn) return;
+  showPage(btn.dataset.page);
+  menu.classList.remove("open");
+});
+
+function showPage(name){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  const el = document.getElementById(`page-${name}`);
+  if(el) el.classList.add("active");
+  // Render on navigation
+  if(name==="inventory") renderInventory();
+  if(name==="transfers") renderTransfers();
+  if(name==="data") renderData();
+}
+
+const modalOverlay = document.getElementById("modalOverlay");
+document.getElementById("modalClose").onclick = ()=> modalOverlay.classList.remove("open");
+function openModal(title, html){
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").innerHTML = html;
+  modalOverlay.classList.add("open");
+}
+
+/* =========================================================
+   8) RENDERERS
+========================================================= */
+document.getElementById("invSearch").addEventListener("input", renderInventory);
+document.getElementById("trSearch").addEventListener("input", renderTransfers);
+document.getElementById("dataSearch").addEventListener("input", renderData);
+
+function getCatalog(part){
+  const key = upper(part);
+  if(!catalog[key]) catalog[key] = { type:"", description:"", palletCaseQty:0, reorderLevel:0 };
+  return catalog[key];
 }
 
 function renderInventory(){
   const q = document.getElementById("invSearch").value.trim().toLowerCase();
-  const invMap = computeInventoryMap();
-  const rows = [...invMap.values()]
-    .filter(r=> !q || r.partNumber.toLowerCase().includes(q))
-    .sort((a,b)=> a.partNumber.localeCompare(b.partNumber))
-    .map(r=>`
-      <tr>
-        <td>${esc(r.partNumber)}</td>
-        <td class="right">${r.transferredNet.toLocaleString()}</td>
-        <td class="right">${r.soldNet.toLocaleString()}</td>
-        <td class="right">${r.onHand.toLocaleString()}</td>
-      </tr>
-    `).join("");
+  const inv = computeInventoryMap();
 
-  document.getElementById("pillSkuCount").textContent = `${invMap.size} SKUs`;
+  // Build unified SKU list from ledger parts
+  const parts = [...inv.keys()].sort();
+  document.getElementById("pillSkuCount").textContent = `${parts.length} SKUs`;
+
+  const rows = parts
+    .filter(p=>{
+      if(!q) return true;
+      const c = getCatalog(p);
+      return p.toLowerCase().includes(q) ||
+        (c.type||"").toLowerCase().includes(q) ||
+        (c.description||"").toLowerCase().includes(q);
+    })
+    .map(p=>{
+      const rec = inv.get(p);
+      const c = getCatalog(p);
+      const low = rec.onHand < num(c.reorderLevel);
+      return `
+        <tr class="${low ? "badRow":""}">
+          <td>${esc(c.type || "")}</td>
+          <td>${esc(p)}</td>
+          <td>${esc(c.description || "")}</td>
+          <td class="right ${low ? "bad":""}">${rec.onHand.toLocaleString()}</td>
+          <td class="right">${num(c.palletCaseQty).toLocaleString()}</td>
+          <td class="right">
+            <input type="number" value="${num(c.reorderLevel)}" data-part="${esc(p)}" class="reorderInput" style="width:110px;">
+          </td>
+        </tr>
+      `;
+    }).join("");
+
   document.getElementById("inventoryTable").innerHTML = `
     <table>
       <thead>
         <tr>
+          <th>Type</th>
           <th>Part Number</th>
-          <th class="right">Transfers Net</th>
-          <th class="right">Sales Net</th>
-          <th class="right">On Hand</th>
+          <th>Description</th>
+          <th class="right">Qty In Stock</th>
+          <th class="right">Qty Pallet/Case</th>
+          <th class="right">Reorder Level (editable)</th>
         </tr>
       </thead>
-      <tbody>${rows || ""}</tbody>
+      <tbody>${rows}</tbody>
     </table>
   `;
+
+  document.querySelectorAll(".reorderInput").forEach(inp=>{
+    inp.onchange = ()=>{
+      const part = upper(inp.dataset.part);
+      const c = getCatalog(part);
+      c.reorderLevel = num(inp.value);
+      catalog[part] = c;
+      persist();
+      renderInventory();
+    };
+  });
+
   document.getElementById("inventoryStatus").textContent =
-    `Transfers rows: ${transfers.length.toLocaleString()} • Sales rows: ${sales.length.toLocaleString()}`;
+    `Transfers rows: ${transfers.length.toLocaleString()} • Data rows: ${sales.length.toLocaleString()} • Redirect URI: ${baseRedirect}`;
 }
 
 function renderTransfers(){
-  document.getElementById("pillTransferCount").textContent = `${transfers.length.toLocaleString()} rows`;
-  const rows = transfers.slice(0,500).map(t=>`
-    <tr>
-      <td>${esc(t.transferNo)}</td>
-      <td>${esc(t.partNumber)}</td>
-      <td>${esc(t.type)}</td>
-      <td>${esc(t.tracking)}</td>
-      <td class="right">${num(t.quantity).toLocaleString()}</td>
-      <td>${esc(t.date)}</td>
-      <td>${esc(t.arrived)}</td>
-      <td>${esc(t.notes)}</td>
-    </tr>
-  `).join("");
+  const q = document.getElementById("trSearch").value.trim().toLowerCase();
+  const rows = transfers
+    .filter(t=>{
+      if(!q) return true;
+      return (t.transferNo||"").toLowerCase().includes(q) ||
+             (t.partNumber||"").toLowerCase().includes(q) ||
+             (t.notes||"").toLowerCase().includes(q);
+    })
+    .slice(0,500)
+    .map(t=>`
+      <tr>
+        <td>${esc(t.transferNo)}</td>
+        <td>${esc(upper(t.partNumber))}</td>
+        <td>${esc(t.type)}</td>
+        <td class="right">${num(t.quantity).toLocaleString()}</td>
+        <td>${esc(t.arrivalDate||"")}</td>
+        <td>${esc(t.notes||"")}</td>
+      </tr>
+    `).join("");
+
   document.getElementById("transfersTable").innerHTML = `
     <table>
       <thead>
         <tr>
-          <th>Transfer #</th><th>Part</th><th>Type</th><th>Tracking</th>
-          <th class="right">Qty</th><th>ESD</th><th>Arrived</th><th>Notes</th>
+          <th>Transfer Number</th>
+          <th>Part Number</th>
+          <th>Type</th>
+          <th class="right">Quantity</th>
+          <th>Arrival Date</th>
+          <th>Notes</th>
         </tr>
       </thead>
-      <tbody>${rows || ""}</tbody>
+      <tbody>${rows}</tbody>
     </table>
-    <div class="sub" style="margin-top:8px;">Showing first 500 rows.</div>
+    <div class="small">Showing first 500 rows. PDF parsing buttons are placeholders (next).</div>
   `;
 }
 
-function renderSales(){
-  document.getElementById("pillSalesCount").textContent = `${sales.length.toLocaleString()} rows`;
-  const rows = sales.slice(0,500).map(s=>`
-    <tr>
-      <td>${esc(s.partNumber)}</td>
-      <td>${esc(s.date)}</td>
-      <td>${esc(s.type)}</td>
-      <td class="right">${num(s.qty).toLocaleString()}</td>
-      <td class="right">${s.unitPrice===null ? "" : num(s.unitPrice).toFixed(2)}</td>
-      <td>${esc(s.priceLabel || "")}</td>
-      <td>${esc(s.poNumber)}</td>
-      <td>${esc(s.customer)}</td>
-      <td class="right">${num(s.total).toFixed(2)}</td>
-      <td>${esc(s.month)}</td>
-    </tr>
-  `).join("");
-  document.getElementById("salesTable").innerHTML = `
+function renderData(){
+  const q = document.getElementById("dataSearch").value.trim().toLowerCase();
+  const rows = sales
+    .filter(d=>{
+      if(!q) return true;
+      return (d.partNumber||"").toLowerCase().includes(q) ||
+             (d.so||"").toLowerCase().includes(q) ||
+             (d.distributor||"").toLowerCase().includes(q);
+    })
+    .slice(0,500)
+    .map(d=>`
+      <tr>
+        <td>${esc(upper(d.partNumber))}</td>
+        <td>${esc(d.date)}</td>
+        <td>${esc(d.id)}</td>
+        <td class="right">${num(d.quantity).toLocaleString()}</td>
+        <td class="right">${d.unitCost===null ? "" : num(d.unitCost).toFixed(2)}</td>
+        <td>${esc(d.so)}</td>
+        <td>${esc(d.distributor)}</td>
+      </tr>
+    `).join("");
+
+  document.getElementById("dataTable").innerHTML = `
     <table>
       <thead>
         <tr>
-          <th>Part</th><th>Date</th><th>Type</th><th class="right">Qty (signed)</th>
-          <th class="right">Unit Price</th><th>Price Label</th><th>PO #</th><th>Customer</th>
-          <th class="right">Total</th><th>Month</th>
+          <th>Part Number</th>
+          <th>Date</th>
+          <th>ID</th>
+          <th class="right">Quantity</th>
+          <th class="right">Cost per unit</th>
+          <th>Sales Order Number</th>
+          <th>Distributor</th>
         </tr>
       </thead>
-      <tbody>${rows || ""}</tbody>
+      <tbody>${rows}</tbody>
     </table>
-    <div class="sub" style="margin-top:8px;">Showing first 500 rows.</div>
+    <div class="small">Showing first 500 rows. PDF parsing buttons are placeholders (next).</div>
   `;
 }
 
-function renderAll(){
-  renderInventory();
-  renderTransfers();
-  renderSales();
-}
+/* =========================================================
+   9) Catalog Editor (to satisfy your model without breaking imports)
+========================================================= */
+document.getElementById("btnCatalog").onclick = ()=>{
+  const inv = computeInventoryMap();
+  const parts = [...inv.keys()].sort();
+  const body = `
+    <div class="small" style="margin-bottom:10px;">
+      Edit Type / Description / Pallet-Case / Reorder. Reorder is editable inline on Inventory too.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Part</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th class="right">Pallet/Case</th>
+          <th class="right">Reorder</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${parts.map(p=>{
+          const c = getCatalog(p);
+          return `
+            <tr>
+              <td>${esc(p)}</td>
+              <td><input data-k="type" data-p="${esc(p)}" value="${esc(c.type||"")}" style="width:160px;"></td>
+              <td><input data-k="description" data-p="${esc(p)}" value="${esc(c.description||"")}" style="width:420px;"></td>
+              <td class="right"><input data-k="palletCaseQty" data-p="${esc(p)}" value="${num(c.palletCaseQty)}" type="number" style="width:120px;"></td>
+              <td class="right"><input data-k="reorderLevel" data-p="${esc(p)}" value="${num(c.reorderLevel)}" type="number" style="width:120px;"></td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+    <div style="height:10px"></div>
+    <button class="btn btnPrimary" id="btnSaveCatalog">Save</button>
+  `;
+  openModal("Edit Catalog", body);
 
-/* ========================= Excel Read ========================= */
+  document.getElementById("btnSaveCatalog").onclick = ()=>{
+    document.querySelectorAll("#modalBody input[data-k]").forEach(inp=>{
+      const p = upper(inp.dataset.p);
+      const k = inp.dataset.k;
+      const c = getCatalog(p);
+      if(k==="palletCaseQty" || k==="reorderLevel") c[k] = num(inp.value);
+      else c[k] = inp.value;
+      catalog[p] = c;
+    });
+    persist();
+    modalOverlay.classList.remove("open");
+    renderInventory();
+  };
+};
+
+/* =========================================================
+   10) Excel Imports (your proven flow)
+========================================================= */
 async function readExcel(file, preferSheetContains){
-  await ensureXLSX();
+  const src = await ensureXLSX();
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type:"array" });
   let sheetName = wb.SheetNames[0];
@@ -435,11 +768,10 @@ async function readExcel(file, preferSheetContains){
   }
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-  return { sheetName, rows };
+  return { sheetName, rows, libSrc: src };
 }
 
-/* ========================= Imports ========================= */
-async function importTransfers(file){
+async function importTransfersExcel(file){
   const st = document.getElementById("adminStatus");
   st.textContent = "⏳ Importing Transfers…";
   try{
@@ -450,118 +782,138 @@ async function importTransfers(file){
     meta.transfersImportedAt = new Date().toISOString();
     persist();
     st.innerHTML = `<span class="ok">✅ Transfers imported: ${transfers.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
-    renderAll();
+    renderInventory(); renderTransfers();
   }catch(e){
     console.error(e);
     st.innerHTML = `<span class="bad">❌ Transfers import failed.</span>\n${e.message || e}`;
   }
 }
 
-async function importSales(file){
+async function importSalesExcel(file){
   const st = document.getElementById("adminStatus");
-  st.textContent = "⏳ Importing Sales/Data…";
+  st.textContent = "⏳ Importing Data…";
   try{
     const { sheetName, rows } = await readExcel(file, "data");
     const parsed = parseSalesRows(rows);
-    if(!parsed.length){ st.innerHTML = "<span class='bad'>❌ No sales rows found.</span>"; return; }
+    if(!parsed.length){ st.innerHTML = "<span class='bad'>❌ No data rows found.</span>"; return; }
     sales = parsed;
     meta.salesImportedAt = new Date().toISOString();
     persist();
-    st.innerHTML = `<span class="ok">✅ Sales imported: ${sales.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
-    renderAll();
+    st.innerHTML = `<span class="ok">✅ Data imported: ${sales.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
+    renderInventory(); renderData();
   }catch(e){
     console.error(e);
-    st.innerHTML = `<span class="bad">❌ Sales import failed.</span>\n${e.message || e}`;
+    st.innerHTML = `<span class="bad">❌ Data import failed.</span>\n${e.message || e}`;
   }
 }
 
-/* ========================= Backup ========================= */
+/* =========================================================
+   11) JSON Backup / Reset
+========================================================= */
 function exportBackup(){
-  const blob = new Blob([JSON.stringify({meta, transfers, sales}, null, 2)], {type:"application/json"});
+  const blob = new Blob([JSON.stringify({meta, transfers, sales, catalog}, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "aes_inventory_ledgers_backup.json";
+  a.download = "aes_inventory_backup.json";
   document.body.appendChild(a);
   a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 500);
 }
-async function importBackup(file){
-  const st = document.getElementById("adminStatus");
-  st.textContent = "⏳ Importing JSON backup…";
-  try{
-    const obj = JSON.parse(await file.text());
-    meta = obj.meta || { transfersImportedAt:null, salesImportedAt:null };
-    transfers = Array.isArray(obj.transfers) ? obj.transfers : [];
-    sales = Array.isArray(obj.sales) ? obj.sales : [];
-    persist();
-    st.innerHTML = `<span class="ok">✅ JSON imported.</span> Transfers: ${transfers.length.toLocaleString()} • Sales: ${sales.length.toLocaleString()}`;
-    renderAll();
-  }catch(e){
-    console.error(e);
-    st.innerHTML = `<span class="bad">❌ JSON import failed.</span>\n${e.message || e}`;
-  }
+async function importBackupViaPicker(){
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "application/json";
+  inp.onchange = async ()=>{
+    const f = inp.files[0];
+    if(!f) return;
+    const st = document.getElementById("adminStatus");
+    st.textContent = "⏳ Importing JSON…";
+    try{
+      const obj = JSON.parse(await f.text());
+      meta = obj.meta || meta;
+      transfers = Array.isArray(obj.transfers) ? obj.transfers : transfers;
+      sales = Array.isArray(obj.sales) ? obj.sales : sales;
+      catalog = obj.catalog || catalog;
+      persist();
+      st.innerHTML = `<span class="ok">✅ JSON imported.</span>`;
+      renderInventory(); renderTransfers(); renderData();
+    }catch(e){
+      st.innerHTML = `<span class="bad">❌ JSON import failed.</span>\n${e.message || e}`;
+    }
+  };
+  inp.click();
 }
 
-/* ========================= Init UI ========================= */
-async function init(){
-  const lib = document.getElementById("libStatus");
-  const adminStatus = document.getElementById("adminStatus");
-
-  try{
-    const src = await ensureXLSX();
-    lib.textContent = `XLSX loaded ✅ (${src})`;
-    lib.className = "ok";
-    adminStatus.textContent = "";
-  }catch(e){
-    console.error(e);
-    lib.textContent = "XLSX NOT loaded ❌";
-    lib.className = "bad";
-    adminStatus.textContent = e.message;
-  }
-
-  document.getElementById("tabs").addEventListener("click",(e)=>{
-    const btn = e.target.closest("button[data-page]");
-    if(!btn) return;
-    setActiveTab(btn.dataset.page);
-    renderAll();
-  });
-
-  document.getElementById("invSearch").addEventListener("input", renderInventory);
-
-  document.getElementById("btnImportTransfers").onclick = ()=>{
-    const f = document.getElementById("fileTransfers").files[0];
-    if(f) importTransfers(f);
-  };
-  document.getElementById("btnImportSales").onclick = ()=>{
-    const f = document.getElementById("fileSales").files[0];
-    if(f) importSales(f);
-  };
-
-  document.getElementById("btnExportJson").onclick = exportBackup;
-  document.getElementById("btnImportJson").onclick = ()=>{
-    const f = document.getElementById("fileImportJson").files[0];
-    if(f) importBackup(f);
-  };
-
-  document.getElementById("btnReset").onclick = ()=>{
-    if(!confirm("Reset ALL local data on this browser/device?")) return;
-    meta = { transfersImportedAt:null, salesImportedAt:null };
-    transfers = []; sales = [];
-    persist();
-    document.getElementById("adminStatus").innerHTML = "<span class='ok'>✅ Reset complete.</span>";
-    renderAll();
-  };
-
-  renderAll();
+function resetAll(){
+  if(!confirm("Reset ALL local data on this browser/device?")) return;
+  meta = { transfersImportedAt:null, salesImportedAt:null };
+  transfers = [];
+  sales = [];
+  catalog = {};
+  persist();
+  renderInventory(); renderTransfers(); renderData();
+  document.getElementById("adminStatus").innerHTML = "<span class='ok'>✅ Reset complete.</span>";
 }
 
-/* ========================= Enter App ========================= */
-document.getElementById("btnEnter").onclick = ()=>{
+/* =========================================================
+   12) Wire buttons + start
+========================================================= */
+document.getElementById("btnLogin").onclick = signIn;
+document.getElementById("btnLogout").onclick = signOut;
+
+document.getElementById("btnExport").onclick = ()=>{ exportBackup(); menu.classList.remove("open"); };
+document.getElementById("btnOpenImport").onclick = ()=>{ importBackupViaPicker(); menu.classList.remove("open"); };
+document.getElementById("btnReset").onclick = ()=>{ resetAll(); menu.classList.remove("open"); };
+
+document.getElementById("btnImportTransfers").onclick = ()=>{
+  const f = document.getElementById("fileTransfers").files[0];
+  if(f) importTransfersExcel(f);
+};
+document.getElementById("btnImportSales").onclick = ()=>{
+  const f = document.getElementById("fileSales").files[0];
+  if(f) importSalesExcel(f);
+};
+
+document.getElementById("btnTransferManual").onclick = ()=>{
+  openModal("Manual Transfer Entry",
+    `<div class="small">Manual entry UI is next. Right now your Excel imports are the source of truth.</div>`);
+};
+document.getElementById("btnDataManual").onclick = ()=>{
+  openModal("Manual Data Entry",
+    `<div class="small">Manual entry UI is next. Right now your Excel imports are the source of truth.</div>`);
+};
+
+async function startApp(email){
+  document.getElementById("whoEmail").textContent = email;
   document.getElementById("loginView").style.display = "none";
   document.getElementById("appView").style.display = "block";
-  init();
-};
+
+  // Show library status (MSAL + XLSX)
+  const libLine = [];
+  libLine.push(`msal=${typeof msal}`);
+  try{
+    const src = await ensureXLSX();
+    libLine.push(`XLSX=ok (${src})`);
+    document.getElementById("libStatus").textContent = libLine.join(" • ");
+    document.getElementById("libStatus").className = "ok";
+  }catch(e){
+    document.getElementById("libStatus").textContent = `XLSX failed: ${e.message}`;
+    document.getElementById("libStatus").className = "bad";
+  }
+
+  renderInventory();
+  renderTransfers();
+  renderData();
+  showPage("inventory");
+}
+
+// On load: show that msal is present + attempt session restore
+(async ()=>{
+  const loginLib = document.getElementById("loginLib");
+  loginLib.textContent = `Libraries: msal=${typeof msal} • redirectUri=${baseRedirect}`;
+  await tryRestoreSession(); // if it fails, user clicks Sign in
+})();
 </script>
 </body>
 </html>
