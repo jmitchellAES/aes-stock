@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AES Inventory System</title>
 
-  <!-- MSAL (Microsoft Login) -->
+  <!-- ✅ MSAL (Microsoft Login) -->
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
-  <!-- SheetJS (Excel import) -->
+  <!-- ✅ SheetJS (Excel import) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
-  <!-- PDF.js -->
+  <!-- ✅ PDF.js (text extraction from text-based PDFs; scanned image PDFs need OCR later) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
@@ -26,53 +26,7 @@
       --bad:#dc2626;
       --warn:#f59e0b;
       --good:#16a34a;
-      --shadow: 0 10px 25px rgba(0,0,0,.06);
-      --radius: 14px;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:var(--bg);
-      color:var(--ink);
-    }
-  </style>
-</head>
-<body>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AES Inventory System</title>
-
-  <!-- MSAL (Microsoft Login) -->
-  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
-
-  <!-- SheetJS (Excel import) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: #f4f6f8;
-    }
-  </style>
-</head>
-  <style>
-    :root{
-      --bg:#f4f6f8;
-      --card:#ffffff;
-      --ink:#0f172a;
-      --muted:#64748b;
-      --line:#e2e8f0;
-      --soft:#f8fafc;
-      --accent:#2563eb;
-      --bad:#dc2626;
-      --warn:#f59e0b;
-      --good:#16a34a;
-      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --shadow: 0 10px 25px rgba(0,0,0,.08);
       --radius: 14px;
     }
     *{box-sizing:border-box}
@@ -126,7 +80,7 @@
     .btn:disabled{opacity:.55; cursor:not-allowed}
     .err{color:var(--bad); font-size:12px; margin-top:10px; white-space:pre-wrap}
 
-    /* App shell */
+    /* App */
     header{
       position:sticky; top:0; z-index:50;
       background:var(--card);
@@ -194,7 +148,6 @@
       font-size:12px;
       color:var(--muted);
     }
-
     .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
     input, select, textarea{
       border:1px solid var(--line);
@@ -248,6 +201,7 @@
     }
     .small{font-size:11px; color:var(--muted)}
     .status{font-weight:900; margin-top:10px; white-space:pre-wrap}
+    code{background:#f1f5f9; padding:1px 6px; border-radius:8px}
   </style>
 </head>
 
@@ -284,12 +238,11 @@
   </header>
 
   <main>
-    <!-- Inventory -->
     <section id="page-inventory" class="page active">
       <div class="pageHeader">
         <div>
           <h2>Inventory</h2>
-          <p class="sub">Qty in stock is calculated. Pallet/Case is shown between Qty and Reorder. Reorder is editable inline.</p>
+          <p class="sub">Qty in stock is calculated. Pallet/Case is between Qty and Reorder. Reorder is editable inline.</p>
         </div>
         <div class="row">
           <span class="pill" id="pillSkuCount">0 SKUs</span>
@@ -299,7 +252,6 @@
       <div id="inventoryTable"></div>
     </section>
 
-    <!-- Receiving -->
     <section id="page-receiving" class="page">
       <div class="pageHeader">
         <div>
@@ -320,7 +272,6 @@
       <div id="receivingTable"></div>
     </section>
 
-    <!-- Data -->
     <section id="page-data" class="page">
       <div class="pageHeader">
         <div>
@@ -355,12 +306,10 @@
       </div>
 
       <div id="scanStatus" class="status"></div>
-
       <div style="height:10px"></div>
       <div id="dataTable"></div>
     </section>
 
-    <!-- Physical -->
     <section id="page-physical" class="page">
       <div class="pageHeader">
         <div>
@@ -372,16 +321,14 @@
           <button class="btn" id="btnShowOnlyMismatches">Show only mismatches</button>
         </div>
       </div>
-
       <div id="physicalTable"></div>
     </section>
 
-    <!-- Admin -->
     <section id="page-admin" class="page">
       <div class="pageHeader">
         <div>
           <h2>Admin</h2>
-          <p class="sub">One-time Excel import + backups.</p>
+          <p class="sub">One-time Excel import + backups. This page also shows library status.</p>
         </div>
       </div>
 
@@ -392,9 +339,12 @@
         <button class="btn btnDanger" id="btnResetLocal">Reset Local Data</button>
       </div>
 
+      <div id="libStatus" class="status"></div>
       <div id="importStatus" class="status"></div>
-      <div class="small" style="margin-top:8px;">
-        Expected headers: Inventory ID, Part Number, Description, Quantity in Stock, Reorder Level, Quantity in Pallet/Case, No Longer Stocking?
+
+      <div class="small" style="margin-top:10px;">
+        Your Excel headers include columns like: <code>Inventory ID</code>, <code>Part Number</code>, <code>Description</code>,
+        <code>Quantity in Stock</code>, <code>Reorder Level</code>, <code>Quantity in Pallet/Case</code>, <code>No Longer Stocking?</code> [2](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
       </div>
     </section>
   </main>
@@ -404,7 +354,7 @@
 "use strict";
 
 /* =========================
-   FIXED esc() (this was broken in your file and killed all JS) 
+   SAFE helpers (no syntax traps)
 ========================= */
 function esc(s){
   return String(s ?? "")
@@ -418,7 +368,7 @@ function upper(s){ return String(s ?? "").trim().toUpperCase(); }
 function money(n){ const x = (isFinite(n)?n:0); return x.toLocaleString(undefined,{style:"currency",currency:"USD"}); }
 
 /* =========================
-   AUTH (GitHub redirect you already validated)
+   AUTH (locked to your working GitHub redirect)
 ========================= */
 const MSAL_CONFIG = {
   auth: {
@@ -437,10 +387,10 @@ const msalApp = new msal.PublicClientApplication(MSAL_CONFIG);
 /* =========================
    STORAGE
 ========================= */
-const KEY_META = "aes_inv_meta_v3";
-const KEY_SKUS = "aes_inv_skus_v3";
-const KEY_RCV  = "aes_inv_receiving_v3";
-const KEY_DATA = "aes_inv_data_v3";
+const KEY_META = "aes_inv_meta_v4";
+const KEY_SKUS = "aes_inv_skus_v4";
+const KEY_RCV  = "aes_inv_receiving_v4";
+const KEY_DATA = "aes_inv_data_v4";
 
 function loadJSON(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -461,7 +411,7 @@ function persist(){
 }
 
 /* =========================
-   MODEL HELPERS
+   MODEL
 ========================= */
 function activeSkus(){ return skus.filter(s => s.active !== false); }
 function findSku(part){ const p=upper(part); return skus.find(s => upper(s.partNumber)===p) || null; }
@@ -485,7 +435,7 @@ function stockFor(part){
 }
 
 /* =========================
-   UI NAV
+   NAV
 ========================= */
 function setActiveTab(page){
   document.querySelectorAll(".tab").forEach(b=>{
@@ -499,12 +449,10 @@ function setActiveTab(page){
    RENDER
 ========================= */
 function renderAll(){
-  // dropdowns
   const parts = activeSkus().map(s=>s.partNumber);
   const opt = parts.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("");
   document.getElementById("rcvPart").innerHTML = opt;
   document.getElementById("salePart").innerHTML = opt;
-
   document.getElementById("pillSkuCount").textContent = `${activeSkus().length} SKUs`;
 
   renderInventory();
@@ -554,7 +502,6 @@ function renderInventory(){
     </table>
   `;
 
-  // inline reorder edit
   document.querySelectorAll(".reorderInput").forEach(inp=>{
     inp.onchange = ()=>{
       const part = inp.dataset.part;
@@ -670,106 +617,65 @@ function renderPhysical(onlyMismatches){
       const v = phys - sys;
       tr.querySelector("[data-var]").textContent = String(v);
       tr.classList.toggle("badRow", v !== 0);
-      if(onlyMismatches){
-        tr.style.display = (v === 0) ? "none" : "";
-      } else {
-        tr.style.display = "";
-      }
+      tr.style.display = (onlyMismatches && v === 0) ? "none" : "";
     };
   });
 }
 
 /* =========================
-   EXCEL IMPORT (single clean function)
+   EXCEL IMPORT (robust header matching)
 ========================= */
 function importExcel(file){
   const out = document.getElementById("importStatus");
   out.textContent = "⏳ Importing Excel…";
 
   const reader = new FileReader();
-
-  reader.onerror = () => {
-    out.textContent = "❌ FileReader failed to read the Excel file.";
-  };
+  reader.onerror = () => { out.textContent = "❌ FileReader failed to read the Excel file."; };
 
   reader.onload = (e) => {
-    try {
+    try{
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type:"array" });
 
-      // Pick sheet: prefer one with "Inventory" in the name
       let sheetName = wb.SheetNames[0];
-      const invSheet = wb.SheetNames.find(n =>
-        String(n).toLowerCase().includes("inventory")
-      );
-      if (invSheet) sheetName = invSheet;
+      const preferred = wb.SheetNames.find(n => String(n).toLowerCase().includes("inventory"));
+      if(preferred) sheetName = preferred;
 
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-
-      if (!rows.length) {
+      if(!rows.length){
         out.textContent = `❌ No rows found in sheet "${sheetName}".`;
         return;
       }
 
-      // Normalize header access
-      const norm = (s) => String(s || "").trim().toLowerCase();
-
-      const get = (row, ...candidates) => {
+      const norm = (s)=>String(s||"").trim().toLowerCase();
+      const get = (row, ...candidates)=>{
         const keys = Object.keys(row);
-        for (const k of keys) {
+        for(const k of keys){
           const nk = norm(k);
-          if (candidates.some(c => nk === norm(c))) {
-            return row[k];
-          }
+          if(candidates.some(c => nk === norm(c))) return row[k];
         }
         return "";
       };
 
-      skus = rows.map(r => {
-        const invId = String(get(r,
-          "inventory id","inventory_id","id"
-        )).trim();
+      // Maps your Excel headers (see Inventory List) [2](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
+      skus = rows.map(r=>{
+        const invId = String(get(r,"Inventory ID","ID")).trim();
+        const partNumber = String(get(r,"Part Number","Part")).trim();
+        const description = String(get(r,"Description")).trim();
+        const openingQty = num(get(r,"Quantity in Stock","Qty in Stock","Quantity"));
+        const reorderLevel = num(get(r,"Reorder Level","Reorder"));
+        const palletCaseQty = num(get(r,"Quantity in Pallet/Case","Qty Pallet/Case","Pallet/Case"));
+        const nls = String(get(r,"No Longer Stocking?","No Longer Stocking")).trim().toLowerCase();
 
-        const partNumber = String(get(r,
-          "part number","part","sku"
-        )).trim();
-
-        const description = String(get(r,
-          "description","desc"
-        )).trim();
-
-        const openingQty = num(get(r,
-          "quantity in stock","qty in stock","quantity","qty"
-        ));
-
-        const reorderLevel = num(get(r,
-          "reorder level","reorder","min"
-        ));
-
-        const palletCaseQty = num(get(r,
-          "quantity in pallet/case","qty pallet/case","pallet/case"
-        ));
-
-        const nls = String(get(r,
-          "no longer stocking?","no longer stocking","discontinued"
-        )).trim().toLowerCase();
-
+        // If "No Longer Stocking?" is filled with anything meaningful, mark inactive
         const active = !(nls && nls !== "no" && nls !== "0" && nls !== "false");
 
-        return {
-          invId,
-          partNumber,
-          description,
-          openingQty,
-          reorderLevel,
-          palletCaseQty,
-          active
-        };
+        return { invId, partNumber, description, openingQty, reorderLevel, palletCaseQty, active };
       }).filter(x => x.partNumber);
 
-      if (!skus.length) {
-        out.textContent = "❌ Parsed file but found 0 valid SKUs. Check headers.";
+      if(!skus.length){
+        out.textContent = "❌ Parsed file but found 0 valid SKUs. Check sheet/headers.";
         return;
       }
 
@@ -780,7 +686,7 @@ function importExcel(file){
       out.textContent = `✅ Imported ${skus.length} SKUs from "${sheetName}".`;
       renderAll();
 
-    } catch (err) {
+    }catch(err){
       console.error("Excel import error:", err);
       out.textContent = "❌ Excel parse failed. See Console for details.";
     }
@@ -788,6 +694,7 @@ function importExcel(file){
 
   reader.readAsArrayBuffer(file);
 }
+
 /* =========================
    BACKUP EXPORT
 ========================= */
@@ -812,7 +719,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 async function parseTicketPdf(file){
   const status = document.getElementById("scanStatus");
   status.textContent = "⏳ Reading PDF…";
-
   try{
     const ab = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data:ab}).promise;
@@ -874,7 +780,7 @@ async function parseTicketPdf(file){
 }
 
 /* =========================
-   BOOTSTRAP UI
+   UI WIRING
 ========================= */
 function wireUI(){
   // tabs
@@ -962,12 +868,18 @@ function wireUI(){
   document.getElementById("rcvDate").value = today;
   document.getElementById("saleDate").value = today;
 
-  // initial render
+  // library status (helps prevent future "undefined" confusion)
+  const ls = document.getElementById("libStatus");
+  if(ls){
+    ls.textContent =
+      `Libraries: msal=${typeof msal}, XLSX=${typeof XLSX}, pdfjsLib=${typeof pdfjsLib}`;
+  }
+
   renderAll();
 }
 
 /* =========================
-   LOGIN HANDLER
+   LOGIN
 ========================= */
 document.getElementById("btnLogin").onclick = async () => {
   const loginView = document.getElementById("loginView");
