@@ -758,13 +758,89 @@ function renderPhysical(onlyMismatches){
    Maps columns from your inventory list:
    Inventory ID, Part Number, Description, Quantity in Stock, Reorder Level, Quantity in Pallet/Case, No Longer Stocking? [1](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
 ========================= */
-async function importExcel(file){
+function importExcel(file){
   const out = document.getElementById("importStatus");
   out.textContent = "⏳ Importing Excel…";
 
-  const buf = await file.arrayBuffer();
-  const data = new Uint8Array(buf);
-  const wb = XLSX.read(data, { type:"array" });
+  try {
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      out.textContent = "❌ FileReader failed to read the Excel file.";
+    };
+
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+
+        // Prefer sheet that includes "Inventory List", else fallback to first sheet
+        let sheetName = wb.SheetNames[0];
+        const invSheet = wb.SheetNames.find(n => String(n).toLowerCase().includes("inventory list"));
+        if (invSheet) sheetName = invSheet;
+
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+        if (!rows.length) {
+          out.textContent = `❌ No rows found in sheet "${sheetName}".`;
+          return;
+        }
+
+        // Normalize key lookup
+        const norm = (k) => String(k || "").trim().toLowerCase();
+
+        const get = (row, ...names) => {
+          const keys = Object.keys(row);
+          const set = names.map(n => n.toLowerCase());
+          const found = keys.find(k => set.includes(norm(k)));
+          return found ? row[found] : "";
+        };
+
+        // Map rows using your Excel headers [1](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
+        skus = rows.map(r => {
+          const invId = String(get(r, "Inventory ID", "ID")).trim();
+          const partNumber = String(get(r, "Part Number", "Part")).trim();
+          const description = String(get(r, "Description")).trim();
+          const openingQty = Number(get(r, "Quantity in Stock", "Qty in Stock", "Quantity")) || 0;
+          const reorderLevel = Number(get(r, "Reorder Level", "Reorder")) || 0;
+          const palletCaseQty = Number(get(r, "Quantity in Pallet/Case", "Qty Pallet/Case", "Pallet/Case")) || 0;
+
+          const nls = String(get(r, "No Longer Stocking?", "No Longer Stocking")).trim().toLowerCase();
+          const active = !(nls && nls !== "no" && nls !== "0" && nls !== "false");
+
+          return {
+            invId,
+            partNumber,
+            description,
+            openingQty,
+            reorderLevel,
+            palletCaseQty,
+            active
+          };
+        }).filter(x => x.partNumber);
+
+        meta.indexed = true;
+        meta.indexedAt = new Date().toISOString();
+        persist();
+
+        out.textContent = `✅ Imported ${skus.length} SKUs from sheet "${sheetName}".`;
+        renderAll();
+
+      } catch (err) {
+        console.error(err);
+        out.textContent = "❌ Excel parsed failed. Open Console for details.";
+      }
+    };
+
+    // ✅ reliable read path (prevents the hang you’re seeing)
+    reader.readAsArrayBuffer(file);
+
+  } catch (err) {
+    console.error(err);
+    out.textContent = "❌ Import crashed before reading file. Open Console.";
+  }
+}
 
   // Prefer a sheet that contains "Inventory List" if present, else first
   let sheetName = wb.SheetNames[0];
