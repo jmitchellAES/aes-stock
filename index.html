@@ -1,97 +1,942 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AES Inventory System</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AES Inventory System</title>
 
-<!-- MSAL -->
-<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+  <!-- MSAL -->
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
-<style>
-body {
-  font-family: system-ui, Arial, sans-serif;
-  background:#f4f6f8;
-  margin:0;
-  padding:40px;
-}
-button {
-  padding:10px 16px;
-  font-size:15px;
-  cursor:pointer;
-}
-.hidden { display:none; }
-.card {
-  background:#fff;
-  padding:24px;
-  max-width:520px;
-  margin:40px auto;
-  border-radius:12px;
-  box-shadow:0 10px 25px rgba(0,0,0,.08);
-}
-#error { color:#b91c1c; margin-top:12px; }
-nav button { margin-right:6px; }
-</style>
+  <!-- Excel import -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+
+  <!-- PDF text extraction (text-based PDFs; scanned PDFs need OCR later) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f4f6f8;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#e2e8f0;
+      --soft:#f8fafc;
+      --accent:#2563eb;
+      --bad:#dc2626;
+      --warn:#f59e0b;
+      --good:#16a34a;
+      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --radius: 14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+    }
+    .loginShell{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .loginCard{
+      width:min(520px, 92vw);
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:28px 22px;
+      box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .loginCard img{height:56px; width:auto; display:block; margin:0 auto 10px;}
+    .loginTitle{font-size:22px; font-weight:900; margin:6px 0 16px;}
+    .btn{
+      border:1px solid var(--line);
+      background:var(--soft);
+      color:var(--ink);
+      padding:10px 14px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btnPrimary{
+      background:rgba(37,99,235,.12);
+      border-color:rgba(37,99,235,.25);
+      color:#1e3a8a;
+      font-weight:800;
+    }
+    .btnDanger{
+      background:rgba(220,38,38,.10);
+      border-color:rgba(220,38,38,.25);
+      color:#7f1d1d;
+      font-weight:800;
+    }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .err{color:var(--bad); font-size:12px; margin-top:10px; white-space:pre-wrap}
+
+    header{
+      position:sticky; top:0; z-index:50;
+      background:var(--card);
+      border-bottom:1px solid var(--line);
+      padding:12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:240px;
+    }
+    .brand img{height:34px; width:auto; display:block}
+    .brand .who{display:flex; flex-direction:column; line-height:1.1}
+    .brand .who .name{font-weight:900; font-size:13px}
+    .brand .who .email{font-size:11px; color:var(--muted)}
+
+    .tabs{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .tab{
+      padding:9px 12px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:transparent;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .tab.active{
+      background:rgba(37,99,235,.10);
+      border-color:rgba(37,99,235,.25);
+      font-weight:900;
+      color:#1e3a8a;
+    }
+
+    main{max-width:1280px; margin:0 auto; padding:16px;}
+    .page{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      display:none;
+    }
+    .page.active{display:block}
+
+    .pageHeader{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .pageHeader h2{
+      margin:0;
+      font-size:14px;
+      letter-spacing:.2px;
+      text-transform:uppercase;
+    }
+    .pageHeader .sub{
+      margin:0;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    input, select, textarea{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:9px 10px;
+      font-size:13px;
+      outline:none;
+      background:#fff;
+    }
+    input:focus, select:focus, textarea:focus{
+      border-color:rgba(37,99,235,.45);
+      box-shadow:0 0 0 3px rgba(37,99,235,.10);
+    }
+    .w160{width:160px}
+    .w220{width:220px}
+    .w320{width:320px}
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(37,99,235,.08);
+      border:1px solid rgba(37,99,235,.18);
+      color:#1e3a8a;
+      font-size:11px;
+      font-weight:800;
+    }
+
+    table{width:100%; border-collapse:separate; border-spacing:0 8px}
+    th{font-size:11px; color:var(--muted); text-align:left; padding:0 8px}
+    td{
+      background:#fff;
+      border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+      padding:8px;
+      font-size:13px;
+      vertical-align:middle;
+    }
+    tr td:first-child{border-left:1px solid var(--line); border-radius:12px 0 0 12px}
+    tr td:last-child{border-right:1px solid var(--line); border-radius:0 12px 12px 0}
+    .right{text-align:right}
+    .badRow td{background:rgba(220,38,38,.06)}
+    .bad{color:var(--bad); font-weight:900}
+
+    .dropzone{
+      border:2px dashed var(--line);
+      border-radius:14px;
+      padding:14px;
+      background:var(--soft);
+      text-align:center;
+      color:var(--muted);
+    }
+    .ok{color:var(--good); font-weight:900}
+    .warn{color:var(--warn); font-weight:900}
+    .small{font-size:11px; color:var(--muted)}
+    .status{font-weight:900; margin-top:10px; white-space:pre-wrap}
+  </style>
 </head>
 
 <body>
 
 <!-- LOGIN -->
-<div id="loginView" class="card">
-  <h2>AES Inventory System</h2>
-  <button id="btnLogin">Sign in with Microsoft</button>
-  <div id="error"></div>
+<div id="loginView" class="loginShell">
+  <div class="loginCard">
+    <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
+    <div class="loginTitle">AES Inventory System</div>
+    <button id="btnLogin" class="btn btnPrimary">Sign in with Microsoft</button>
+    <div id="loginError" class="err"></div>
+  </div>
 </div>
 
 <!-- APP -->
-<div id="appView" class="card hidden">
-  <h3>✅ Login Successful</h3>
-  <p id="whoEmail"></p>
-  <nav>
-    <button>Inventory</button>
-    <button>Transfers</button>
-    <button>Data</button>
-  </nav>
+<div id="appView" style="display:none;">
+  <header>
+    <div class="brand">
+      <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
+      <div class="who">
+        <div class="name">AES Inventory System</div>
+        <div class="email" id="whoEmail">—</div>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-page="inventory">Inventory</button>
+      <button class="tab" data-page="receiving">Receiving</button>
+      <button class="tab" data-page="data">Sales / Data</button>
+      <button class="tab" data-page="physical">Physical Count</button>
+      <button class="tab" data-page="admin">Admin</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="page-inventory" class="page active">
+      <div class="pageHeader">
+        <div>
+          <h2>Inventory</h2>
+          <p class="sub">Qty in stock is calculated. Reorder Level is editable inline. Pallet/Case is shown between Qty and Reorder.</p>
+        </div>
+        <div class="row">
+          <span class="pill" id="pillSkuCount">0 SKUs</span>
+          <input id="invSearch" class="w320" placeholder="Search ID / Part / Description">
+        </div>
+      </div>
+      <div id="inventoryTable"></div>
+    </section>
+
+    <section id="page-receiving" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Receiving</h2>
+          <p class="sub">Add inbound inventory (transfers / vendor receipts). This increases stock.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <select id="rcvPart" class="w320"></select>
+        <input id="rcvQty" type="number" placeholder="Qty" class="w160">
+        <input id="rcvDate" type="date" class="w220">
+        <input id="rcvRef" class="w220" placeholder="Reference (transfer#, PO)">
+        <button class="btn btnPrimary" id="btnAddReceiving">Add Receiving</button>
+      </div>
+
+      <div style="height:10px"></div>
+      <div id="receivingTable"></div>
+    </section>
+
+    <section id="page-data" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Sales / Data</h2>
+          <p class="sub">Manual entry or drop PDF ticket (Warehouse Scan style). Sales reduce stock, returns add stock.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <select id="salePart" class="w320"></select>
+        <input id="saleQty" type="number" placeholder="Qty" class="w160">
+        <input id="salePrice" type="number" step="0.01" placeholder="Unit Price" class="w160">
+        <input id="saleDate" type="date" class="w220">
+        <input id="saleCustomer" class="w220" placeholder="Customer">
+        <input id="saleSO" class="w220" placeholder="Sales Order #">
+        <select id="saleKind" class="w220">
+          <option value="Sale">Sale</option>
+          <option value="Sample">Sample</option>
+          <option value="Defective">Defective</option>
+          <option value="Return">Return</option>
+        </select>
+        <button class="btn btnPrimary" id="btnAddSale">Add</button>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="dropzone" id="pdfDropZone">
+        Drop signed ticket PDFs here OR <input id="pdfPick" type="file" accept="application/pdf">
+        <div class="small" style="margin-top:8px;">
+          Note: This parses text-based PDFs. Scanned image PDFs will need OCR later.
+        </div>
+      </div>
+
+      <div id="scanStatus" class="status"></div>
+
+      <div style="height:10px"></div>
+      <div id="dataTable"></div>
+    </section>
+
+    <section id="page-physical" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Physical Count</h2>
+          <p class="sub">Shows ALL active SKUs at once. Enter physical qty; mismatches highlight.</p>
+        </div>
+        <div class="row">
+          <button class="btn btnPrimary" id="btnBuildCountSheet">Build Count Sheet</button>
+          <button class="btn" id="btnShowOnlyMismatches">Show only mismatches</button>
+        </div>
+      </div>
+
+      <div id="physicalTable"></div>
+    </section>
+
+    <section id="page-admin" class="page">
+      <div class="pageHeader">
+        <div>
+          <h2>Admin</h2>
+          <p class="sub">One-time Excel import + backup. Excel import uses ArrayBuffer (no hanging).</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <input id="excelInput" type="file" accept=".xlsx,.xls" class="w320">
+        <button class="btn btnPrimary" id="btnImportExcel">Import Excel</button>
+        <button class="btn" id="btnExportJson">Export JSON Backup</button>
+        <button class="btn btnDanger" id="btnResetLocal">Reset Local Data</button>
+      </div>
+
+      <div id="importStatus" class="status"></div>
+      <div class="small" style="margin-top:8px;">
+        Expected headers include: Inventory ID, Part Number, Description, Quantity in Stock, Reorder Level, Quantity in Pallet/Case, No Longer Stocking? [1](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
+      </div>
+    </section>
+  </main>
 </div>
 
 <script>
-/* ================= AUTH ================= */
-const msalApp = new msal.PublicClientApplication({
+/* =========================
+   AUTH (locked to working GitHub redirect)
+========================= */
+const MSAL_CONFIG = {
   auth: {
     clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
     authority: "https://login.microsoftonline.com/1d0cc9c5-af28-42e4-b83c-677cb00c9dde",
     redirectUri: "https://jmitchellaes.github.io/aes-stock/"
   },
   cache: { cacheLocation: "localStorage" }
-});
-
+};
 const ALLOWED_USERS = [
   "jmitchell@allelectricsales.com",
   "jmarra@allelectricsales.com"
 ];
+const msalApp = new msal.PublicClientApplication(MSAL_CONFIG);
+
+const loginView = document.getElementById("loginView");
+const appView = document.getElementById("appView");
+const whoEmail = document.getElementById("whoEmail");
+const loginError = document.getElementById("loginError");
 
 document.getElementById("btnLogin").onclick = async () => {
-  error.innerText = "";
+  loginError.textContent = "";
   try {
-    const res = await msalApp.loginPopup({
-      scopes: ["User.Read"],
-      prompt: "select_account"
-    });
-
+    const res = await msalApp.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
     const email = res.account.username.toLowerCase();
     if (!ALLOWED_USERS.includes(email)) {
       await msalApp.logoutPopup();
-      throw new Error("Access denied: " + email);
+      throw new Error("Access denied for " + email);
     }
-
-    loginView.classList.add("hidden");
-    appView.classList.remove("hidden");
-    whoEmail.innerText = email;
-
+    whoEmail.textContent = email;
+    loginView.style.display = "none";
+    appView.style.display = "block";
+    initUI();
   } catch (err) {
     console.error(err);
-    error.innerText = err.errorCode || err.message || "Login failed";
+    loginError.textContent = err.errorCode || err.message || String(err);
   }
 };
+
+/* =========================
+   STORAGE
+========================= */
+const KEY_SKUS = "aes_inv_skus_v2";
+const KEY_RCV  = "aes_inv_receiving_v2";
+const KEY_DATA = "aes_inv_data_v2";
+const KEY_META = "aes_inv_meta_v2";
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let meta = loadJSON(KEY_META, { indexed:false, indexedAt:null, cutoffDate:null });
+let skus = loadJSON(KEY_SKUS, []);       // {invId, partNumber, description, openingQty, reorderLevel, palletCaseQty, active}
+let receiving = loadJSON(KEY_RCV, []);   // {date, ref, partNumber, qty}
+let dataRows = loadJSON(KEY_DATA, []);   // {date, customer, so, partNumber, quantity, unitPrice, kind}
+
+function persist(){
+  saveJSON(KEY_META, meta);
+  saveJSON(KEY_SKUS, skus);
+  saveJSON(KEY_RCV, receiving);
+  saveJSON(KEY_DATA, dataRows);
+}
+
+/* =========================
+   HELPERS
+========================= */
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
+}
+function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
+function upper(s){ return String(s ?? "").trim().toUpperCase(); }
+
+function activeSkus(){
+  return skus.filter(s => s.active !== false);
+}
+
+function findSku(part){
+  const p = upper(part);
+  return skus.find(s => upper(s.partNumber) === p) || null;
+}
+
+/* computed stock = openingQty + receiving - sales (+ returns) */
+function stockFor(part){
+  const sku = findSku(part);
+  const opening = sku ? num(sku.openingQty) : 0;
+
+  const inbound = receiving
+    .filter(r => upper(r.partNumber) === upper(part))
+    .reduce((sum,r) => sum + Math.abs(num(r.qty)), 0);
+
+  const netOut = dataRows
+    .filter(d => upper(d.partNumber) === upper(part))
+    .reduce((sum,d) => {
+      const q = Math.abs(num(d.quantity));
+      return (d.kind === "Return") ? (sum - q) : (sum + q);
+    }, 0);
+
+  return opening + inbound - netOut;
+}
+
+function setActiveTab(page){
+  document.querySelectorAll(".tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.page === page);
+  });
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(`page-${page}`).classList.add("active");
+}
+
+/* =========================
+   UI INIT
+========================= */
+function initUI(){
+  // tabs
+  document.getElementById("tabs").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-page]");
+    if(!btn) return;
+    setActiveTab(btn.dataset.page);
+    renderAll();
+  });
+
+  // search
+  document.getElementById("invSearch").addEventListener("input", renderInventory);
+
+  // receiving add
+  document.getElementById("btnAddReceiving").onclick = ()=>{
+    const part = document.getElementById("rcvPart").value;
+    const qty = num(document.getElementById("rcvQty").value);
+    const date = document.getElementById("rcvDate").value || new Date().toISOString().slice(0,10);
+    const ref  = document.getElementById("rcvRef").value || "";
+    if(!part || !qty) return;
+    receiving.unshift({date, ref, partNumber: part, qty});
+    persist();
+    document.getElementById("rcvQty").value = "";
+    document.getElementById("rcvRef").value = "";
+    renderAll();
+  };
+
+  // sales add
+  document.getElementById("btnAddSale").onclick = ()=>{
+    const part = document.getElementById("salePart").value;
+    const qty = num(document.getElementById("saleQty").value);
+    const unitPrice = num(document.getElementById("salePrice").value);
+    const date = document.getElementById("saleDate").value || new Date().toISOString().slice(0,10);
+    const customer = document.getElementById("saleCustomer").value || "";
+    const so = document.getElementById("saleSO").value || "";
+    const kind = document.getElementById("saleKind").value || "Sale";
+    if(!part || !qty) return;
+    dataRows.unshift({date, customer, so, partNumber: part, quantity: qty, unitPrice, kind, source:"Manual"});
+    persist();
+    document.getElementById("saleQty").value = "";
+    document.getElementById("salePrice").value = "";
+    document.getElementById("saleCustomer").value = "";
+    document.getElementById("saleSO").value = "";
+    renderAll();
+  };
+
+  // physical sheet
+  document.getElementById("btnBuildCountSheet").onclick = ()=> renderPhysical(false);
+  document.getElementById("btnShowOnlyMismatches").onclick = ()=> renderPhysical(true);
+
+  // admin
+  document.getElementById("btnImportExcel").onclick = ()=> {
+    const f = document.getElementById("excelInput").files[0];
+    if(!f) return;
+    importExcel(f);
+  };
+  document.getElementById("btnExportJson").onclick = exportBackup;
+  document.getElementById("btnResetLocal").onclick = ()=>{
+    if(!confirm("Reset ALL local data? This deletes SKUs, receiving, and sales records on this device.")) return;
+    meta = { indexed:false, indexedAt:null, cutoffDate:null };
+    skus = [];
+    receiving = [];
+    dataRows = [];
+    persist();
+    renderAll();
+    alert("Local data reset.");
+  };
+
+  // PDF drop/pick
+  const dz = document.getElementById("pdfDropZone");
+  dz.addEventListener("dragover", (e)=>{ e.preventDefault(); dz.style.borderColor="#94a3b8"; });
+  dz.addEventListener("dragleave", ()=>{ dz.style.borderColor=""; });
+  dz.addEventListener("drop", (e)=>{
+    e.preventDefault(); dz.style.borderColor="";
+    const file = e.dataTransfer.files?.[0];
+    if(file) parseTicketPdf(file);
+  });
+  document.getElementById("pdfPick").addEventListener("change", (e)=>{
+    const file = e.target.files?.[0];
+    if(file) parseTicketPdf(file);
+  });
+
+  // default dates
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById("rcvDate").value = today;
+  document.getElementById("saleDate").value = today;
+
+  // initial render
+  renderAll();
+}
+
+/* =========================
+   RENDER
+========================= */
+function renderAll(){
+  // dropdowns
+  const parts = activeSkus().map(s => s.partNumber);
+  const opt = parts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
+  document.getElementById("rcvPart").innerHTML = opt;
+  document.getElementById("salePart").innerHTML = opt;
+
+  renderInventory();
+  renderReceiving();
+  renderData();
+  // physical renders on demand
+  document.getElementById("pillSkuCount").textContent = `${activeSkus().length} SKUs`;
+}
+
+function renderInventory(){
+  const q = document.getElementById("invSearch").value.trim().toLowerCase();
+  const rows = activeSkus()
+    .filter(s => !q ||
+      String(s.invId||"").toLowerCase().includes(q) ||
+      String(s.partNumber||"").toLowerCase().includes(q) ||
+      String(s.description||"").toLowerCase().includes(q)
+    )
+    .map(s => {
+      const qty = stockFor(s.partNumber);
+      const low = qty < num(s.reorderLevel);
+      return `
+        <tr class="${low ? "badRow" : ""}">
+          <td>${esc(s.invId)}</td>
+          <td>${esc(s.partNumber)}</td>
+          <td>${esc(s.description)}</td>
+          <td class="right ${low ? "bad" : ""}">${qty}</td>
+
+          <!-- ✅ Pallet/Case BETWEEN qty and reorder -->
+          <td class="right">${num(s.palletCaseQty)}</td>
+
+          <td class="right">
+            <input type="number" value="${num(s.reorderLevel)}" style="width:110px"
+              data-part="${esc(s.partNumber)}" class="reorderInput">
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+  document.getElementById("inventoryTable").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Part Number</th>
+          <th>Description</th>
+          <th class="right">Qty In Stock</th>
+          <th class="right">Pallet/Case</th>
+          <th class="right">Reorder Level</th>
+        </tr>
+      </thead>
+      <tbody>${rows || ""}</tbody>
+    </table>
+  `;
+
+  // inline reorder edit
+  document.querySelectorAll(".reorderInput").forEach(inp => {
+    inp.onchange = ()=>{
+      const part = inp.dataset.part;
+      const sku = findSku(part);
+      if(!sku) return;
+      sku.reorderLevel = num(inp.value);
+      persist();
+      renderInventory();
+    };
+  });
+}
+
+function renderReceiving(){
+  const rows = receiving.slice(0,250).map(r => `
+    <tr>
+      <td>${esc(r.date)}</td>
+      <td>${esc(r.partNumber)}</td>
+      <td class="right">${Math.abs(num(r.qty))}</td>
+      <td>${esc(r.ref||"")}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("receivingTable").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Part Number</th>
+          <th class="right">Qty</th>
+          <th>Reference</th>
+        </tr>
+      </thead>
+      <tbody>${rows || ""}</tbody>
+    </table>
+  `;
+}
+
+function renderData(){
+  const rows = dataRows.slice(0,300).map(d => `
+    <tr>
+      <td>${esc(d.date)}</td>
+      <td>${esc(d.partNumber)}</td>
+      <td class="right">${Math.abs(num(d.quantity))}</td>
+      <td class="right">${money(num(d.unitPrice))}</td>
+      <td>${esc(d.customer||"")}</td>
+      <td>${esc(d.so||"")}</td>
+      <td>${esc(d.kind||"Sale")}</td>
+      <td class="small">${esc(d.source||"")}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("dataTable").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Part Number</th>
+          <th class="right">Qty</th>
+          <th class="right">Unit Price</th>
+          <th>Customer</th>
+          <th>SO #</th>
+          <th>Type</th>
+          <th class="small">Source</th>
+        </tr>
+      </thead>
+      <tbody>${rows || ""}</tbody>
+    </table>
+  `;
+}
+
+function money(n){
+  const x = (isFinite(n)?n:0);
+  return x.toLocaleString(undefined,{style:"currency",currency:"USD"});
+}
+
+/* =========================
+   PHYSICAL COUNT
+========================= */
+function renderPhysical(onlyMismatches){
+  const rows = activeSkus().map((s,idx)=>{
+    const sys = stockFor(s.partNumber);
+    return `
+      <tr data-row="${idx}">
+        <td>${esc(s.invId)}</td>
+        <td>${esc(s.partNumber)}</td>
+        <td>${esc(s.description)}</td>
+        <td class="right" data-sys="${sys}">${sys}</td>
+        <td class="right">${num(s.palletCaseQty)}</td>
+        <td class="right">
+          <input type="number" style="width:110px" data-phys="1" data-part="${esc(s.partNumber)}" />
+        </td>
+        <td class="right" data-var="1">0</td>
+      </tr>
+    `;
+  }).join("");
+
+  document.getElementById("physicalTable").innerHTML = `
+    <table id="physTbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Part Number</th>
+          <th>Description</th>
+          <th class="right">System Qty</th>
+          <th class="right">Pallet/Case</th>
+          <th class="right">Physical Qty</th>
+          <th class="right">Variance</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="small" style="margin-top:8px;">
+      Variance = Physical - System. Rows with variance ≠ 0 highlight.
+    </div>
+  `;
+
+  document.querySelectorAll("#physTbl input[data-phys]").forEach(inp=>{
+    inp.oninput = ()=>{
+      const tr = inp.closest("tr");
+      const sys = num(tr.querySelector("[data-sys]").dataset.sys);
+      const phys = num(inp.value);
+      const v = phys - sys;
+      tr.querySelector("[data-var]").textContent = String(v);
+      tr.classList.toggle("badRow", v !== 0);
+      if(onlyMismatches){
+        // hide exact matches live
+        tr.style.display = (v === 0) ? "none" : "";
+      }
+    };
+  });
+}
+
+/* =========================
+   EXCEL IMPORT (ArrayBuffer, no hanging)
+   Maps columns from your inventory list:
+   Inventory ID, Part Number, Description, Quantity in Stock, Reorder Level, Quantity in Pallet/Case, No Longer Stocking? [1](https://allelectricsales-my.sharepoint.com/personal/jmitchell_allelectricsales_com/_layouts/15/Doc.aspx?sourcedoc=%7B28EEF0EB-BBDB-472A-B0FC-C82EE8472898%7D&file=Chicago%20Inventory%20Master%20File.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1)
+========================= */
+async function importExcel(file){
+  const out = document.getElementById("importStatus");
+  out.textContent = "⏳ Importing Excel…";
+
+  const buf = await file.arrayBuffer();
+  const data = new Uint8Array(buf);
+  const wb = XLSX.read(data, { type:"array" });
+
+  // Prefer a sheet that contains "Inventory List" if present, else first
+  let sheetName = wb.SheetNames[0];
+  const invSheet = wb.SheetNames.find(n => n.toLowerCase().includes("inventory list"));
+  if(invSheet) sheetName = invSheet;
+
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+
+  if(!rows.length){
+    out.textContent = "❌ No rows found in Excel sheet.";
+    return;
+  }
+
+  // Column name normalizer
+  const key = (k)=> String(k||"").trim().toLowerCase();
+
+  // Map rows
+  const mapped = rows.map(r=>{
+    const keys = Object.keys(r);
+    const pick = (...names)=>{
+      const set = names.map(n=>n.toLowerCase());
+      const found = keys.find(k=> set.includes(key(k)));
+      return found ? r[found] : "";
+    };
+
+    const invId = String(pick("inventory id","id","inventory_id")).trim();
+    const partNumber = String(pick("part number","part","part_number")).trim();
+    const description = String(pick("description","desc")).trim();
+    const openingQty = num(pick("quantity in stock","qty in stock","quantity","qty","quantity in stock "));
+    const reorderLevel = num(pick("reorder level","reorder","min"));
+    const palletCaseQty = num(pick("quantity in pallet/case","qty pallet/case","pallet/case","qty in pallet/case"));
+    const lastInv = String(pick("last inventory check","last inventory","last check")).trim();
+    const noLonger = String(pick("no longer stocking?","no longer stocking","discontinued")).trim();
+
+    const active = !(noLonger && noLonger.toLowerCase() !== "no" && noLonger !== "0");
+
+    return {
+      invId,
+      partNumber,
+      description,
+      openingQty,
+      reorderLevel,
+      palletCaseQty,
+      active,
+      lastInventoryCheck: lastInv
+    };
+  }).filter(x => x.partNumber);
+
+  skus = mapped;
+  meta.indexed = true;
+  meta.indexedAt = new Date().toISOString();
+  // optional: store a cutoff date if present on any row
+  const dates = mapped.map(m => m.lastInventoryCheck).filter(Boolean);
+  meta.cutoffDate = dates.length ? dates[0] : null;
+
+  persist();
+  out.textContent = `✅ Imported ${skus.length} SKUs from "${sheetName}".`;
+  renderAll();
+}
+
+/* =========================
+   BACKUP EXPORT
+========================= */
+function exportBackup(){
+  const blob = new Blob([JSON.stringify({meta, skus, receiving, dataRows}, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "aes_inventory_backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+/* =========================
+   PDF PARSING (Warehouse Scan hook)
+   - Extracts text via PDF.js
+   - Finds known part numbers in text
+   - Attempts to grab qty near part number
+   - Adds rows to Data (kind=Sale) with source="PDF"
+========================= */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+async function parseTicketPdf(file){
+  const status = document.getElementById("scanStatus");
+  status.textContent = "⏳ Reading PDF…";
+
+  try{
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+
+    let text = "";
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it=>it.str).join(" ") + " ";
+    }
+
+    const upperText = text.toUpperCase();
+
+    // try match each SKU part number in PDF
+    const hits = [];
+    for(const s of activeSkus()){
+      const part = upper(s.partNumber);
+      if(!part) continue;
+      const idx = upperText.indexOf(part);
+      if(idx === -1) continue;
+
+      // Look for a number near the part number (next 40 chars)
+      const windowStr = upperText.slice(idx, idx + part.length + 60);
+      const m = windowStr.match(new RegExp(part + "\\s+(\\d{1,6})"));
+      let qty = m ? num(m[1]) : 0;
+
+      // if not found, fallback: any number in window
+      if(!qty){
+        const m2 = windowStr.match(/\\b(\\d{1,6})\\b/);
+        qty = m2 ? num(m2[1]) : 0;
+      }
+
+      if(qty){
+        hits.push({partNumber:s.partNumber, qty});
+      }
+    }
+
+    if(!hits.length){
+      status.textContent = "⚠️ No part numbers detected in this PDF text. If this is a scanned image, OCR is required.";
+      return;
+    }
+
+    // Add hits as sale rows (review UI can be added next)
+    const today = new Date().toISOString().slice(0,10);
+    hits.forEach(h=>{
+      dataRows.unshift({
+        date: today,
+        customer: "",
+        so: "",
+        partNumber: h.partNumber,
+        quantity: h.qty,
+        unitPrice: 0,
+        kind: "Sale",
+        source: "PDF"
+      });
+    });
+
+    persist();
+    status.textContent = `✅ Added ${hits.length} line(s) from PDF. (Review UI can be added next.)`;
+    renderAll();
+
+  }catch(e){
+    console.error(e);
+    status.textContent = "❌ PDF parse failed. See console.";
+  }
+}
+
+/* =========================
+   ADMIN BUTTONS
+========================= */
+document.addEventListener("DOMContentLoaded", ()=>{
+  // wire admin buttons
+  document.getElementById("btnImportExcel").onclick = ()=> {
+    const f = document.getElementById("excelInput").files[0];
+    if(!f) return;
+    importExcel(f);
+  };
+  document.getElementById("btnExportJson").onclick = exportBackup;
+
+  // default to inventory tab
+  setActiveTab("inventory");
+});
 </script>
 
 </body>
