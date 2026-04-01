@@ -579,3 +579,328 @@ function renderData(){
   `;
 }
 
+/* =========================
+   PHYSICAL COUNT
+========================= */
+function renderPhysical(onlyMismatches){
+  const rows = activeSkus().map((s)=> {
+    const sys = stockFor(s.partNumber);
+    return `
+      <tr>
+        <td>${esc(s.invId)}</td>
+        <td>${esc(s.partNumber)}</td>
+        <td>${esc(s.description)}</td>
+        <td class="right" data-sys="${sys}">${sys}</td>
+        <td class="right">${num(s.palletCaseQty)}</td>
+        <td class="right"><input type="number" style="width:110px" data-phys="1"></td>
+        <td class="right" data-var="1">0</td>
+      </tr>
+    `;
+  }).join("");
+
+  document.getElementById("physicalTable").innerHTML = `
+    <table id="physTbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Part Number</th>
+          <th>Description</th>
+          <th class="right">System Qty</th>
+          <th class="right">Pallet/Case</th>
+          <th class="right">Physical Qty</th>
+          <th class="right">Variance</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="small" style="margin-top:8px;">Variance = Physical − System. Rows with variance ≠ 0 highlight.</div>
+  `;
+
+  document.querySelectorAll("#physTbl input[data-phys]").forEach(inp=>{
+    inp.oninput = ()=>{
+      const tr = inp.closest("tr");
+      const sys = num(tr.querySelector("[data-sys]").dataset.sys);
+      const phys = num(inp.value);
+      const v = phys - sys;
+      tr.querySelector("[data-var]").textContent = String(v);
+      tr.classList.toggle("badRow", v !== 0);
+      if(onlyMismatches){
+        tr.style.display = (v === 0) ? "none" : "";
+      } else {
+        tr.style.display = "";
+      }
+    };
+  });
+}
+
+/* =========================
+   EXCEL IMPORT (single clean function)
+========================= */
+function importExcel(file){
+  const out = document.getElementById("importStatus");
+  out.textContent = "⏳ Importing Excel…";
+
+  const reader = new FileReader();
+
+  reader.onerror = () => {
+    out.textContent = "❌ FileReader failed to read the Excel file.";
+  };
+
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:"array" });
+
+      // Pick sheet: prefer one with "Inventory List", else first
+      let sheetName = wb.SheetNames[0];
+      const invSheet = wb.SheetNames.find(n => String(n).toLowerCase().includes("inventory list"));
+      if(invSheet) sheetName = invSheet;
+
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+
+      if(!rows.length){
+        out.textContent = `❌ No rows found in sheet "${sheetName}".`;
+        return;
+      }
+
+      // helper to fetch by header name
+      const get = (row, name) => row[name] ?? "";
+
+      skus = rows.map(r=>{
+        const invId = String(get(r,"Inventory ID")).trim();
+        const partNumber = String(get(r,"Part Number")).trim();
+        const description = String(get(r,"Description")).trim();
+        const openingQty = num(get(r,"Quantity in Stock"));
+        const reorderLevel = num(get(r,"Reorder Level"));
+        const palletCaseQty = num(get(r,"Quantity in Pallet/Case"));
+        const nls = String(get(r,"No Longer Stocking?")).trim().toLowerCase();
+        const active = !(nls && nls !== "no" && nls !== "0" && nls !== "false");
+
+        return { invId, partNumber, description, openingQty, reorderLevel, palletCaseQty, active };
+      }).filter(x => x.partNumber);
+
+      meta.indexed = true;
+      meta.indexedAt = new Date().toISOString();
+      persist();
+
+      out.textContent = `✅ Imported ${skus.length} SKUs from sheet "${sheetName}".`;
+      renderAll();
+
+    } catch(err){
+      console.error(err);
+      out.textContent = "❌ Excel parse failed. Open Console for details.";
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================
+   BACKUP EXPORT
+========================= */
+function exportBackup(){
+  const blob = new Blob([JSON.stringify({meta, skus, receiving, dataRows}, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "aes_inventory_backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+/* =========================
+   PDF PARSING (Warehouse Scan hook - text PDFs)
+========================= */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+async function parseTicketPdf(file){
+  const status = document.getElementById("scanStatus");
+  status.textContent = "⏳ Reading PDF…";
+
+  try{
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+
+    let text = "";
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it=>it.str).join(" ") + " ";
+    }
+
+    const upperText = text.toUpperCase();
+    const hits = [];
+
+    for(const s of activeSkus()){
+      const part = upper(s.partNumber);
+      if(!part) continue;
+      const idx = upperText.indexOf(part);
+      if(idx === -1) continue;
+
+      const windowStr = upperText.slice(idx, idx + part.length + 60);
+      const m = windowStr.match(new RegExp(part + "\\s+(\\d{1,6})"));
+      let qty = m ? num(m[1]) : 0;
+
+      if(!qty){
+        const m2 = windowStr.match(/\b(\d{1,6})\b/);
+        qty = m2 ? num(m2[1]) : 0;
+      }
+      if(qty) hits.push({partNumber:s.partNumber, qty});
+    }
+
+    if(!hits.length){
+      status.textContent = "⚠️ No part numbers detected in PDF text. If scanned image, OCR is required.";
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0,10);
+    hits.forEach(h=>{
+      dataRows.unshift({
+        date: today,
+        customer: "",
+        so: "",
+        partNumber: h.partNumber,
+        quantity: h.qty,
+        unitPrice: 0,
+        kind: "Sale",
+        source: "PDF"
+      });
+    });
+
+    persist();
+    status.textContent = `✅ Added ${hits.length} line(s) from PDF.`;
+    renderAll();
+
+  }catch(e){
+    console.error(e);
+    status.textContent = "❌ PDF parse failed. See console.";
+  }
+}
+
+/* =========================
+   BOOTSTRAP UI
+========================= */
+function wireUI(){
+  // tabs
+  document.getElementById("tabs").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-page]");
+    if(!btn) return;
+    setActiveTab(btn.dataset.page);
+    renderAll();
+  });
+
+  // search
+  document.getElementById("invSearch").addEventListener("input", renderInventory);
+
+  // receiving
+  document.getElementById("btnAddReceiving").onclick = ()=>{
+    const part = document.getElementById("rcvPart").value;
+    const qty = num(document.getElementById("rcvQty").value);
+    const date = document.getElementById("rcvDate").value || new Date().toISOString().slice(0,10);
+    const ref  = document.getElementById("rcvRef").value || "";
+    if(!part || !qty) return;
+    receiving.unshift({date, ref, partNumber: part, qty});
+    persist();
+    document.getElementById("rcvQty").value = "";
+    document.getElementById("rcvRef").value = "";
+    renderAll();
+  };
+
+  // sales
+  document.getElementById("btnAddSale").onclick = ()=>{
+    const part = document.getElementById("salePart").value;
+    const qty = num(document.getElementById("saleQty").value);
+    const unitPrice = num(document.getElementById("salePrice").value);
+    const date = document.getElementById("saleDate").value || new Date().toISOString().slice(0,10);
+    const customer = document.getElementById("saleCustomer").value || "";
+    const so = document.getElementById("saleSO").value || "";
+    const kind = document.getElementById("saleKind").value || "Sale";
+    if(!part || !qty) return;
+    dataRows.unshift({date, customer, so, partNumber: part, quantity: qty, unitPrice, kind, source:"Manual"});
+    persist();
+    document.getElementById("saleQty").value = "";
+    document.getElementById("salePrice").value = "";
+    document.getElementById("saleCustomer").value = "";
+    document.getElementById("saleSO").value = "";
+    renderAll();
+  };
+
+  // physical
+  document.getElementById("btnBuildCountSheet").onclick = ()=> renderPhysical(false);
+  document.getElementById("btnShowOnlyMismatches").onclick = ()=> renderPhysical(true);
+
+  // admin
+  document.getElementById("btnImportExcel").onclick = ()=>{
+    const f = document.getElementById("excelInput").files[0];
+    if(!f) return;
+    importExcel(f);
+  };
+  document.getElementById("btnExportJson").onclick = exportBackup;
+  document.getElementById("btnResetLocal").onclick = ()=>{
+    if(!confirm("Reset ALL local data? This deletes SKUs, receiving, and sales records on this device.")) return;
+    meta = { indexed:false, indexedAt:null };
+    skus = [];
+    receiving = [];
+    dataRows = [];
+    persist();
+    renderAll();
+    alert("Local data reset.");
+  };
+
+  // pdf
+  const dz = document.getElementById("pdfDropZone");
+  dz.addEventListener("dragover", (e)=>{ e.preventDefault(); dz.style.borderColor="#94a3b8"; });
+  dz.addEventListener("dragleave", ()=>{ dz.style.borderColor=""; });
+  dz.addEventListener("drop", (e)=>{
+    e.preventDefault(); dz.style.borderColor="";
+    const file = e.dataTransfer.files?.[0];
+    if(file) parseTicketPdf(file);
+  });
+  document.getElementById("pdfPick").addEventListener("change", (e)=>{
+    const file = e.target.files?.[0];
+    if(file) parseTicketPdf(file);
+  });
+
+  // default dates
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById("rcvDate").value = today;
+  document.getElementById("saleDate").value = today;
+
+  // initial render
+  renderAll();
+}
+
+/* =========================
+   LOGIN HANDLER
+========================= */
+document.getElementById("btnLogin").onclick = async () => {
+  const loginView = document.getElementById("loginView");
+  const appView = document.getElementById("appView");
+  const whoEmail = document.getElementById("whoEmail");
+  const loginError = document.getElementById("loginError");
+
+  loginError.textContent = "";
+  try{
+    const res = await msalApp.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
+    const email = res.account.username.toLowerCase();
+    if(!ALLOWED_USERS.includes(email)){
+      await msalApp.logoutPopup();
+      throw new Error("Access denied for " + email);
+    }
+    whoEmail.textContent = email;
+    loginView.style.display = "none";
+    appView.style.display = "block";
+    wireUI();
+  }catch(err){
+    console.error(err);
+    loginError.textContent = err.errorCode || err.message || String(err);
+  }
+};
+</script>
+
+</body>
+</html>
