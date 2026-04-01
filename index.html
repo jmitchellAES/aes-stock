@@ -383,13 +383,9 @@ async function tryRestoreSession(){
 }
 
 async function signOut(){
-  try{ await msalApp.logoutPopup(); }
-  catch(e){ console.error(e); }
-  finally{
-    document.getElementById("appView").style.display = "none";
-    document.getElementById("loginView").style.display = "flex";
-    document.getElementById("whoEmail").textContent = "—";
-  }
+  await msalApp.logoutRedirect({
+    postLogoutRedirectUri: baseRedirect
+  });
 }
 
 /* ======================= Storage (single canonical model) ======================= */
