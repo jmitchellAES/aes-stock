@@ -498,6 +498,8 @@ function showPage(name){
   if(name==="inventory") renderInventory();
   if(name==="transfers") renderTransfers();
   if(name==="data") renderData();
+  if (name === "month") renderMonthBreakdown();
+  if (name === "analyzed") renderAnalyzed();
 }
 
 const modalOverlay = document.getElementById("modalOverlay");
@@ -652,7 +654,118 @@ function renderData(){
     <div class="small">Showing first 500 rows.</div>
   `;
 }
+  
+function renderMonthBreakdown(){
+  const map = {}; // yyyy-mm -> aggregate
 
+  sales.forEach(r => {
+    if (!r.date) return;
+
+    // r.date is yyyy-mm-dd
+    const month = r.date.slice(0, 7); // yyyy-mm
+
+    if (!map[month]) {
+      map[month] = {
+        month,
+        qty: 0,
+        revenue: 0,
+        count: 0
+      };
+    }
+
+    map[month].qty += num(r.quantity);
+    map[month].revenue += num(r.total);
+    map[month].count += 1;
+  });
+
+  const rows = Object.values(map)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(m => `
+      <tr>
+        <td>${m.month}</td>
+        <td class="right">${m.qty.toLocaleString()}</td>
+        <td class="right">$${m.revenue.toLocaleString()}</td>
+        <td class="right">${m.count}</td>
+      </tr>
+    `)
+    .join("");
+
+  document.getElementById("page-month").innerHTML = `
+    <div class="pageHeader">
+      <div>
+        <h2>Month Breakdown</h2>
+        <p class="sub">Grouped from imported Data ledger</p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th class="right">Qty Sold</th>
+          <th class="right">Revenue</th>
+          <th class="right">Transactions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+  function renderAnalyzed(){
+  let totalRevenue = 0;
+  let totalQty = 0;
+  const skuMap = {};
+
+  sales.forEach(r => {
+    totalRevenue += num(r.total);
+    totalQty += num(r.quantity);
+
+    const p = r.partNumber;
+    if (!skuMap[p]) skuMap[p] = 0;
+    skuMap[p] += num(r.total);
+  });
+
+  const avgPrice = totalQty ? (totalRevenue / totalQty) : 0;
+
+  const topSkus = Object.entries(skuMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([sku, rev]) => `
+      <tr>
+        <td>${esc(sku)}</td>
+        <td class="right">$${rev.toLocaleString()}</td>
+      </tr>
+    `)
+    .join("");
+
+  document.getElementById("page-analyzed").innerHTML = `
+    <div class="pageHeader">
+      <div>
+        <h2>Analyzed</h2>
+        <p class="sub">High‑level metrics from Data ledger</p>
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:14px;">
+      <span class="pill">Revenue: $${totalRevenue.toLocaleString()}</span>
+      <span class="pill">Units Sold: ${totalQty.toLocaleString()}</span>
+      <span class="pill">Avg Price: $${avgPrice.toFixed(2)}</span>
+    </div>
+
+    <h3 style="font-size:13px;margin-top:10px;">Top 5 SKUs by Revenue</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Part Number</th>
+          <th class="right">Revenue</th>
+        </tr>
+      </thead>
+      <tbody>${topSkus}</tbody>
+    </table>
+  `;
+}
+  
 /* ======================= Catalog Editor ======================= */
 document.getElementById("btnCatalog").onclick = ()=>{
   const inv = computeInventoryMap();
