@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AES Inventory System</title>
 
-  <!-- ✅ MSAL (Microsoft Sign-in) -->
+  <!-- MSAL -->
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 
   <style>
@@ -25,8 +25,6 @@
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-
-    /* Login screen */
     .loginShell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
     .loginCard{
       width:min(520px,92vw);
@@ -44,8 +42,6 @@
     .btnDanger{background:rgba(220,38,38,.10);border-color:rgba(220,38,38,.25);color:#7f1d1d;font-weight:800}
     .btn:disabled{opacity:.55;cursor:not-allowed}
     .err{color:var(--bad);font-size:12px;margin-top:10px;white-space:pre-wrap}
-
-    /* App shell */
     .appShell{min-height:100vh;background:var(--bg)}
     header{
       position:sticky;top:0;z-index:50;
@@ -62,7 +58,6 @@
     .brand .who{display:flex;flex-direction:column;line-height:1.1}
     .brand .who .name{font-weight:900;font-size:13px}
     .brand .who .email{font-size:11px;color:var(--muted)}
-
     .hamburger{
       width:42px;height:38px;border:1px solid var(--line);border-radius:12px;background:var(--soft);
       display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
@@ -103,8 +98,6 @@
     .ok{color:var(--good);font-weight:800}
     .bad{color:var(--bad);font-weight:900}
     .status{font-weight:900;margin-top:10px;white-space:pre-wrap}
-
-    /* Modal */
     .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:200}
     .modalOverlay.open{display:flex}
     .modal{width:min(980px,95vw);max-height:85vh;overflow:auto;background:var(--page);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px}
@@ -116,169 +109,162 @@
 </head>
 
 <body>
-
-<!-- LOGIN -->
-<div id="loginView" class="loginShell">
-  <div class="loginCard">
-    <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
-    <div class="loginTitle">AES Inventory System</div>
-    <button id="btnLogin" class="btn btnPrimary">Sign in with Microsoft</button>
-    <div id="loginError" class="err"></div>
-    <div id="loginLib" class="small" style="margin-top:10px;"></div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="appView" class="appShell" style="display:none;">
-  <header>
-    <div class="brand">
+  <!-- LOGIN -->
+  <div id="loginView" class="loginShell">
+    <div class="loginCard">
       <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
-      <div class="who">
-        <div class="name">AES Inventory System</div>
-        <div class="email" id="whoEmail">—</div>
-      </div>
+      <div class="loginTitle">AES Inventory System</div>
+      <button id="btnLogin" class="btn btnPrimary">Sign in with Microsoft</button>
+      <div id="loginError" class="err"></div>
+      <div id="loginLib" class="small" style="margin-top:10px;"></div>
     </div>
-
-    <div class="hamburger" id="hamburgerBtn" title="Menu">
-      <div class="lines"><span></span><span></span><span></span></div>
-      <div class="menu" id="menu">
-        <button data-page="inventory">Inventory</button>
-        <button data-page="transfers">Transfers</button>
-        <button data-page="data">Data</button>
-        <button data-page="month">Month Breakdown</button>
-        <button data-page="analyzed">Analyzed</button>
-        <div class="sep"></div>
-        <button id="btnIndexExcel">Index from Excel (one-time)</button>
-        <button id="btnExport">Export JSON Backup</button>
-        <button id="btnOpenImport">Import JSON Backup</button>
-        <button id="btnReset" class="btnDanger">Reset Local Data</button>
-        <div class="sep"></div>
-        <button id="btnLogout" class="btnDanger">Sign out</button>
-      </div>
-    </div>
-  </header>
-
-  <main>
-    <!-- Inventory -->
-    <section id="page-inventory" class="page active">
-      <div class="pageHeader">
-        <div>
-          <h2>Inventory</h2>
-          <p class="sub">Inventory = Transfers (net) − Data (net). Only Reorder Level is editable.</p>
-        </div>
-        <div class="actions">
-          <span class="pill" id="pillSkuCount">0 SKUs</span>
-          <input id="invSearch" class="w320" placeholder="Search Type / Part / Description">
-          <button class="btn" id="btnCatalog">Edit Catalog (Type/Desc/Pallet/Reorder)</button>
-        </div>
-      </div>
-      <div id="inventoryTable"></div>
-      <div id="inventoryStatus" class="status"></div>
-    </section>
-
-    <!-- Transfers -->
-    <section id="page-transfers" class="page">
-      <div class="pageHeader">
-        <div>
-          <h2>Transfers</h2>
-          <p class="sub">Imported ledger + optional manual adds (PDF parsing placeholder).</p>
-        </div>
-        <div class="actions">
-          <input id="trSearch" class="w320" placeholder="Search Transfer # / Part / Notes">
-          <button class="btn" id="btnTransferManual">Manual</button>
-          <button class="btn" id="btnTransferPdf" disabled>Download (PDF)</button>
-        </div>
-      </div>
-      <div id="transfersTable"></div>
-    </section>
-
-    <!-- Data -->
-    <section id="page-data" class="page">
-      <div class="pageHeader">
-        <div>
-          <h2>Data</h2>
-          <p class="sub">Imported ledger + optional manual adds (Warehouse Scan PDF parsing later).</p>
-        </div>
-        <div class="actions">
-          <input id="dataSearch" class="w320" placeholder="Search Part / SO / Distributor">
-          <button class="btn" id="btnDataManual">Manual</button>
-          <button class="btn" id="btnDataPdf" disabled>Download (PDF)</button>
-        </div>
-      </div>
-      <div id="dataTable"></div>
-    </section>
-
-    <!-- Month Breakdown -->
-    <section id="page-month" class="page">
-      <div class="pageHeader">
-        <div>
-          <h2>Month Breakdown</h2>
-          <p class="sub">Uses imported Data ledger.</p>
-        </div>
-      </div>
-      <div class="small">Coming next: we’ll match your spreadsheet format exactly.</div>
-    </section>
-
-    <!-- Analyzed -->
-    <section id="page-analyzed" class="page">
-      <div class="pageHeader">
-        <div>
-          <h2>Analyzed</h2>
-          <p class="sub">Filters + charts (coming next). Data already stored correctly.</p>
-        </div>
-      </div>
-      <div class="small">Coming next: interactive filters + graphs.</div>
-    </section>
-
-    <!-- Admin (kept as a page but accessed from menu) -->
-    <section id="page-admin" class="page">
-      <div class="pageHeader">
-        <div>
-          <h2>Admin</h2>
-          <p class="sub">Import the two Excel history files. This is the proven workflow.</p>
-        </div>
-        <div class="actions">
-          <span class="pill">Libraries: <span id="libStatus">loading…</span></span>
-        </div>
-      </div>
-
-      <div class="row" style="margin-bottom:8px;">
-        <input id="fileTransfers" type="file" accept=".xlsx,.xls" class="w320">
-        <button class="btn btnPrimary" id="btnImportTransfers">Import Transfers Excel (Replace)</button>
-      </div>
-      <div class="row" style="margin-bottom:8px;">
-        <input id="fileSales" type="file" accept=".xlsx,.xls" class="w320">
-        <button class="btn btnPrimary" id="btnImportSales">Import Data Excel (Replace)</button>
-      </div>
-
-      <div id="adminStatus" class="status"></div>
-      <div class="small" style="margin-top:10px;">
-        Transfers headers: Transfer Number, Part Number, Type, Tracking Number, Quantity, ESD, Arrived, Notes<br>
-        Data headers: Part Number, Date, Type, Qty Sold, Price Sold, PO Number, Customer, Total, Monthly Sale
-      </div>
-    </section>
-  </main>
-</div>
-
-<!-- MODAL -->
-<div id="modalOverlay" class="modalOverlay">
-  <div class="modal">
-    <div class="modalHeader">
-      <h3 id="modalTitle">Modal</h3>
-      <button class="closeX" id="modalClose">Close</button>
-    </div>
-    <div id="modalBody"></div>
   </div>
-</div>
+
+  <!-- APP -->
+  <div id="appView" class="appShell" style="display:none;">
+    <header>
+      <div class="brand">
+        <img src="aes-logo.png" alt="AES logo" onerror="this.style.display='none'">
+        <div class="who">
+          <div class="name">AES Inventory System</div>
+          <div class="email" id="whoEmail">—</div>
+        </div>
+      </div>
+
+      <div class="hamburger" id="hamburgerBtn" title="Menu">
+        <div class="lines"><span></span><span></span><span></span></div>
+        <div class="menu" id="menu">
+          <button data-page="inventory">Inventory</button>
+          <button data-page="transfers">Transfers</button>
+          <button data-page="data">Data</button>
+          <button data-page="month">Month Breakdown</button>
+          <button data-page="analyzed">Analyzed</button>
+          <div class="sep"></div>
+          <button id="btnIndexExcel">Index from Excel (one-time)</button>
+          <button id="btnExport">Export JSON Backup</button>
+          <button id="btnOpenImport">Import JSON Backup</button>
+          <button id="btnReset" class="btnDanger">Reset Local Data</button>
+          <div class="sep"></div>
+          <button id="btnLogout" class="btnDanger">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Inventory -->
+      <section id="page-inventory" class="page active">
+        <div class="pageHeader">
+          <div>
+            <h2>Inventory</h2>
+            <p class="sub">Inventory = Transfers (net) − Data (net). Only Reorder Level is editable.</p>
+          </div>
+          <div class="actions">
+            <span class="pill" id="pillSkuCount">0 SKUs</span>
+            <input id="invSearch" class="w320" placeholder="Search Type / Part / Description">
+            <button class="btn" id="btnCatalog">Edit Catalog (Type/Desc/Pallet/Reorder)</button>
+          </div>
+        </div>
+        <div id="inventoryTable"></div>
+        <div id="inventoryStatus" class="status"></div>
+      </section>
+
+      <!-- Transfers -->
+      <section id="page-transfers" class="page">
+        <div class="pageHeader">
+          <div>
+            <h2>Transfers</h2>
+            <p class="sub">Imported ledger + optional manual adds (PDF parsing placeholder).</p>
+          </div>
+          <div class="actions">
+            <input id="trSearch" class="w320" placeholder="Search Transfer # / Part / Notes">
+            <button class="btn" id="btnTransferManual">Manual</button>
+            <button class="btn" id="btnTransferPdf" disabled>Download (PDF)</button>
+          </div>
+        </div>
+        <div id="transfersTable"></div>
+      </section>
+
+      <!-- Data -->
+      <section id="page-data" class="page">
+        <div class="pageHeader">
+          <div>
+            <h2>Data</h2>
+            <p class="sub">Imported ledger + optional manual adds (Warehouse Scan PDF parsing later).</p>
+          </div>
+          <div class="actions">
+            <input id="dataSearch" class="w320" placeholder="Search Part / SO / Distributor">
+            <button class="btn" id="btnDataManual">Manual</button>
+            <button class="btn" id="btnDataPdf" disabled>Download (PDF)</button>
+          </div>
+        </div>
+        <div id="dataTable"></div>
+      </section>
+
+      <!-- Month -->
+      <section id="page-month" class="page">
+        <div class="pageHeader">
+          <div>
+            <h2>Month Breakdown</h2>
+            <p class="sub">Uses imported Data ledger.</p>
+          </div>
+        </div>
+        <div class="small">Coming next: we’ll match your spreadsheet format exactly.</div>
+      </section>
+
+      <!-- Analyzed -->
+      <section id="page-analyzed" class="page">
+        <div class="pageHeader">
+          <div>
+            <h2>Analyzed</h2>
+            <p class="sub">Filters + charts (coming next). Data already stored correctly.</p>
+          </div>
+        </div>
+        <div class="small">Coming next: interactive filters + graphs.</div>
+      </section>
+
+      <!-- Admin page exists (still works) -->
+      <section id="page-admin" class="page">
+        <div class="pageHeader">
+          <div>
+            <h2>Admin</h2>
+            <p class="sub">Import the two Excel history files (Replace). Same as Index from Excel.</p>
+          </div>
+          <div class="actions">
+            <span class="pill">Libraries: <span id="libStatus">loading…</span></span>
+          </div>
+        </div>
+
+        <div class="row" style="margin-bottom:8px;">
+          <input id="fileTransfers" type="file" accept=".xlsx,.xls" class="w320">
+          <button class="btn btnPrimary" id="btnImportTransfers">Import Transfers Excel (Replace)</button>
+        </div>
+        <div class="row" style="margin-bottom:8px;">
+          <input id="fileSales" type="file" accept=".xlsx,.xls" class="w320">
+          <button class="btn btnPrimary" id="btnImportSales">Import Data Excel (Replace)</button>
+        </div>
+
+        <div id="adminStatus" class="status"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modalOverlay" class="modalOverlay">
+    <div class="modal">
+      <div class="modalHeader">
+        <h3 id="modalTitle">Modal</h3>
+        <button class="closeX" id="modalClose">Close</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
 
 <script>
 "use strict";
 
-/* =========================================================
-   1) XLSX LOADER (the part you debugged and proved)
-========================================================= */
+/* ======================= XLSX LOADER (single instance) ======================= */
 const XLSX_SOURCES = [
-  "./xlsx.full.min.js", // optional vendored copy if you drop it in the repo
+  "./xlsx.full.min.js",
   "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
   "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
@@ -294,49 +280,46 @@ function loadScript(url){
     document.head.appendChild(s);
   });
 }
+
 async function ensureXLSX(){
-  if(typeof XLSX === "object") return "already loaded";
+  if (typeof window.XLSX === "object") return "already loaded";
   const errs = [];
-  for(const url of XLSX_SOURCES){
+  for (const url of XLSX_SOURCES){
     try{
       const src = await loadScript(url);
-      if(typeof XLSX === "object") return src;
+      if (typeof window.XLSX === "object") return src;
     }catch(e){ errs.push(e.message); }
   }
   throw new Error("All XLSX sources failed:\n" + errs.join("\n"));
 }
 
-/* =========================================================
-   2) HELPERS (clean + safe)
-========================================================= */
+/* ======================= Helpers (fixed) ======================= */
 function esc(s){
   return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;");
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
 }
 function norm(s){ return String(s ?? "").trim().toLowerCase(); }
 function upper(s){ return String(s ?? "").trim().toUpperCase(); }
 function num(v){
-  if(v === null || v === undefined) return 0;
+  if (v === null || v === undefined) return 0;
   const n = parseFloat(String(v).replace(/[$,]/g,"").trim());
   return isFinite(n) ? n : 0;
 }
 
-/* =========================================================
-   3) MSAL (Popup sign-in gate, does not touch your XLSX logic)
-========================================================= */
+/* ======================= Redirect URI helper ======================= */
 const baseRedirect = (()=>{
-  // Ensures GitHub Pages subpath is preserved: origin + pathname directory
   const url = new URL(window.location.href);
   let path = url.pathname;
-  // If user is at /something/index.html, redirect should be /something/
-  if(path.toLowerCase().endsWith("index.html")) path = path.slice(0, -("index.html".length));
-  if(!path.endsWith("/")) path += "/";
+  if (path.toLowerCase().endsWith("index.html")) path = path.slice(0, -("index.html".length));
+  if (!path.endsWith("/")) path += "/";
   return url.origin + path;
 })();
 
+/* ======================= MSAL ======================= */
 const MSAL_CONFIG = {
   auth: {
     clientId: "c7c97eaf-1e41-4339-93c5-555b6c8bf231",
@@ -357,17 +340,13 @@ async function signIn(){
   const loginError = document.getElementById("loginError");
   loginError.textContent = "";
   try{
-    // handleRedirectPromise is safe even if you only use popup
     await msalApp.handleRedirectPromise().catch(()=>{});
-
     const res = await msalApp.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
     const email = (res.account?.username || "").toLowerCase();
-
     if(!ALLOWED_USERS.includes(email)){
       await msalApp.logoutPopup();
       throw new Error("Access denied for " + email);
     }
-
     msalApp.setActiveAccount(res.account);
     startApp(email);
   }catch(err){
@@ -379,13 +358,9 @@ async function signIn(){
 async function tryRestoreSession(){
   try{
     await msalApp.handleRedirectPromise().catch(()=>{});
-    const accounts = msalApp.getAllAccounts();
-    if(!accounts || !accounts.length) return false;
-
-    // pick an allowed account if present
+    const accounts = msalApp.getAllAccounts() || [];
     const acct = accounts.find(a => ALLOWED_USERS.includes((a.username||"").toLowerCase()));
     if(!acct) return false;
-
     msalApp.setActiveAccount(acct);
     startApp((acct.username||"").toLowerCase());
     return true;
@@ -395,21 +370,16 @@ async function tryRestoreSession(){
 }
 
 async function signOut(){
-  try{
-    await msalApp.logoutPopup();
-  }catch(e){
-    console.error(e);
-  } finally {
-    // hard reset UI
+  try{ await msalApp.logoutPopup(); }
+  catch(e){ console.error(e); }
+  finally{
     document.getElementById("appView").style.display = "none";
     document.getElementById("loginView").style.display = "flex";
     document.getElementById("whoEmail").textContent = "—";
   }
 }
 
-/* =========================================================
-   4) STORAGE (your proven two-ledger model)
-========================================================= */
+/* ======================= Storage (single canonical model) ======================= */
 const KEY = {
   meta: "aes_meta_v8",
   transfers: "aes_transfers_v8",
@@ -421,12 +391,12 @@ function loadJSON(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
   catch{ return fallback; }
 }
-function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+function saveJSON(key,val){ localStorage.setItem(key, JSON.stringify(val)); }
 
 let meta = loadJSON(KEY.meta, { transfersImportedAt:null, salesImportedAt:null });
 let transfers = loadJSON(KEY.transfers, []);
 let sales = loadJSON(KEY.sales, []);
-let catalog = loadJSON(KEY.catalog, {}); // partNumber -> {type, description, palletCaseQty, reorderLevel}
+let catalog = loadJSON(KEY.catalog, {}); // PART -> {type, description, palletCaseQty, reorderLevel}
 
 function persist(){
   saveJSON(KEY.meta, meta);
@@ -435,9 +405,7 @@ function persist(){
   saveJSON(KEY.catalog, catalog);
 }
 
-/* =========================================================
-   5) PARSERS (exact headers)
-========================================================= */
+/* ======================= Parsers (exact headers) ======================= */
 function getByHeader(row, header){
   const want = norm(header);
   for(const k of Object.keys(row)){
@@ -447,55 +415,43 @@ function getByHeader(row, header){
 }
 
 function parseTransfersRows(rows){
-  return rows.map(r=>{
-    const transferNo = String(getByHeader(r,"Transfer Number")).trim();
-    const part = String(getByHeader(r,"Part Number")).trim();
-    const type = String(getByHeader(r,"Type")).trim();
-    const tracking = String(getByHeader(r,"Tracking Number")).trim();
-    const qty = num(getByHeader(r,"Quantity"));
-    const esd = String(getByHeader(r,"ESD")).trim();
-    const arrived = String(getByHeader(r,"Arrived")).trim();
-    const notes = String(getByHeader(r,"Notes")).trim();
-    return { transferNo, partNumber: part, type, tracking, quantity: qty, arrivalDate: esd, arrived, notes };
-  }).filter(x=>x.partNumber);
+  return rows.map(r=>({
+    transferNo: String(getByHeader(r,"Transfer Number")).trim(),
+    partNumber: String(getByHeader(r,"Part Number")).trim(),
+    type: String(getByHeader(r,"Type")).trim(),
+    tracking: String(getByHeader(r,"Tracking Number")).trim(),
+    quantity: num(getByHeader(r,"Quantity")),
+    arrivalDate: String(getByHeader(r,"ESD")).trim(),
+    arrived: String(getByHeader(r,"Arrived")).trim(),
+    notes: String(getByHeader(r,"Notes")).trim()
+  })).filter(x=>x.partNumber);
 }
 
 function parseSalesRows(rows){
   return rows.map(r=>{
     const part = String(getByHeader(r,"Part Number")).trim();
     const date = String(getByHeader(r,"Date")).trim();
-    const id = String(getByHeader(r,"Type")).trim(); // OBS-xx / IDs
+    const id = String(getByHeader(r,"Type")).trim();
     const qtyRaw = num(getByHeader(r,"Qty Sold"));
-    const priceRaw = getByHeader(r,"Price Sold");
-    const priceText = String(priceRaw ?? "").trim();
+    const priceText = String(getByHeader(r,"Price Sold") ?? "").trim();
     const so = String(getByHeader(r,"PO Number")).trim();
     const distributor = String(getByHeader(r,"Customer")).trim();
     const total = num(getByHeader(r,"Total"));
-
     const isReturn = norm(priceText).includes("return") || norm(distributor) === "return";
     const signedQty = isReturn ? -Math.abs(qtyRaw) : Math.abs(qtyRaw);
-
     const unitCost = (priceText !== "" && isFinite(parseFloat(priceText))) ? num(priceText) : null;
     const costLabel = (unitCost === null) ? priceText : "";
-
     return { partNumber: part, date, id, quantity: signedQty, unitCost, costLabel, so, distributor, total, isReturn };
   }).filter(x=>x.partNumber);
 }
 
-/* =========================================================
-   6) INVENTORY MATH (ledger-based)
-   Inventory = sum(transfers.quantity) - sum(data.quantity)
-   Where data.quantity is signed: returns negative -> subtracting negative adds back.
-========================================================= */
+/* ======================= Inventory math (fixed) ======================= */
 function computeInventoryMap(){
-  const map = new Map(); // PART -> {transferredNet, soldNet, onHand}
+  const map = new Map();
   const ensure = (p)=>{
     const key = upper(p);
     if(!map.has(key)) map.set(key, { partNumber:key, transferredNet:0, soldNet:0, onHand:0 });
     return map.get(key);
-    // If your current code uses `transfers` and `sales`:
-let transfers = transfersRows;
-let sales = dataRows;
   };
 
   transfers.forEach(t=>{
@@ -505,7 +461,7 @@ let sales = dataRows;
 
   sales.forEach(s=>{
     const rec = ensure(s.partNumber);
-    rec.soldNet += num(s.quantity);
+    rec.soldNet += num(s.quantity); // signed (returns negative)
   });
 
   for(const rec of map.values()){
@@ -514,12 +470,11 @@ let sales = dataRows;
   return map;
 }
 
-/* =========================================================
-   7) UI: Menu / Modal
-========================================================= */
+/* ======================= UI: Menu + Modal ======================= */
 const menu = document.getElementById("menu");
 document.getElementById("hamburgerBtn").onclick = (e)=>{ menu.classList.toggle("open"); e.stopPropagation(); };
 document.addEventListener("click", ()=> menu.classList.remove("open"));
+
 menu.addEventListener("click",(e)=>{
   const btn = e.target.closest("button[data-page]");
   if(!btn) return;
@@ -531,7 +486,6 @@ function showPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   const el = document.getElementById(`page-${name}`);
   if(el) el.classList.add("active");
-  // Render on navigation
   if(name==="inventory") renderInventory();
   if(name==="transfers") renderTransfers();
   if(name==="data") renderData();
@@ -545,9 +499,7 @@ function openModal(title, html){
   modalOverlay.classList.add("open");
 }
 
-/* =========================================================
-   8) RENDERERS
-========================================================= */
+/* ======================= Renderers ======================= */
 document.getElementById("invSearch").addEventListener("input", renderInventory);
 document.getElementById("trSearch").addEventListener("input", renderTransfers);
 document.getElementById("dataSearch").addEventListener("input", renderData);
@@ -561,9 +513,8 @@ function getCatalog(part){
 function renderInventory(){
   const q = document.getElementById("invSearch").value.trim().toLowerCase();
   const inv = computeInventoryMap();
-
-  // Build unified SKU list from ledger parts
   const parts = [...inv.keys()].sort();
+
   document.getElementById("pillSkuCount").textContent = `${parts.length} SKUs`;
 
   const rows = parts
@@ -578,11 +529,12 @@ function renderInventory(){
       const rec = inv.get(p);
       const c = getCatalog(p);
       const low = rec.onHand < num(c.reorderLevel);
+
       return `
         <tr class="${low ? "badRow":""}">
-          <td>${esc(c.type || "")}</td>
+          <td>${esc(c.type||"")}</td>
           <td>${esc(p)}</td>
-          <td>${esc(c.description || "")}</td>
+          <td>${esc(c.description||"")}</td>
           <td class="right ${low ? "bad":""}">${rec.onHand.toLocaleString()}</td>
           <td class="right">${num(c.palletCaseQty).toLocaleString()}</td>
           <td class="right">
@@ -596,11 +548,8 @@ function renderInventory(){
     <table>
       <thead>
         <tr>
-          <th>Type</th>
-          <th>Part Number</th>
-          <th>Description</th>
-          <th class="right">Qty In Stock</th>
-          <th class="right">Qty Pallet/Case</th>
+          <th>Type</th><th>Part Number</th><th>Description</th>
+          <th class="right">Qty In Stock</th><th class="right">Qty Pallet/Case</th>
           <th class="right">Reorder Level (editable)</th>
         </tr>
       </thead>
@@ -620,7 +569,7 @@ function renderInventory(){
   });
 
   document.getElementById("inventoryStatus").textContent =
-    `Transfers rows: ${transfers.length.toLocaleString()} • Data rows: ${sales.length.toLocaleString()} • Redirect URI: ${baseRedirect}`;
+    `Transfers rows: ${transfers.length.toLocaleString()} • Data rows: ${sales.length.toLocaleString()} • redirectUri: ${baseRedirect}`;
 }
 
 function renderTransfers(){
@@ -648,17 +597,13 @@ function renderTransfers(){
     <table>
       <thead>
         <tr>
-          <th>Transfer Number</th>
-          <th>Part Number</th>
-          <th>Type</th>
-          <th class="right">Quantity</th>
-          <th>Arrival Date</th>
-          <th>Notes</th>
+          <th>Transfer Number</th><th>Part Number</th><th>Type</th>
+          <th class="right">Quantity</th><th>Arrival Date</th><th>Notes</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="small">Showing first 500 rows. PDF parsing buttons are placeholders (next).</div>
+    <div class="small">Showing first 500 rows.</div>
   `;
 }
 
@@ -688,40 +633,26 @@ function renderData(){
     <table>
       <thead>
         <tr>
-          <th>Part Number</th>
-          <th>Date</th>
-          <th>ID</th>
-          <th class="right">Quantity</th>
-          <th class="right">Cost per unit</th>
-          <th>Sales Order Number</th>
-          <th>Distributor</th>
+          <th>Part Number</th><th>Date</th><th>ID</th>
+          <th class="right">Quantity</th><th class="right">Cost per unit</th>
+          <th>Sales Order Number</th><th>Distributor</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="small">Showing first 500 rows. PDF parsing buttons are placeholders (next).</div>
+    <div class="small">Showing first 500 rows.</div>
   `;
 }
 
-/* =========================================================
-   9) Catalog Editor (to satisfy your model without breaking imports)
-========================================================= */
+/* ======================= Catalog Editor ======================= */
 document.getElementById("btnCatalog").onclick = ()=>{
   const inv = computeInventoryMap();
   const parts = [...inv.keys()].sort();
   const body = `
-    <div class="small" style="margin-bottom:10px;">
-      Edit Type / Description / Pallet-Case / Reorder. Reorder is editable inline on Inventory too.
-    </div>
+    <div class="small" style="margin-bottom:10px;">Edit Type / Description / Pallet/Case / Reorder.</div>
     <table>
       <thead>
-        <tr>
-          <th>Part</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th class="right">Pallet/Case</th>
-          <th class="right">Reorder</th>
-        </tr>
+        <tr><th>Part</th><th>Type</th><th>Description</th><th class="right">Pallet/Case</th><th class="right">Reorder</th></tr>
       </thead>
       <tbody>
         ${parts.map(p=>{
@@ -748,7 +679,7 @@ document.getElementById("btnCatalog").onclick = ()=>{
       const p = upper(inp.dataset.p);
       const k = inp.dataset.k;
       const c = getCatalog(p);
-      if(k==="palletCaseQty" || k==="reorderLevel") c[k] = num(inp.value);
+      if(k === "palletCaseQty" || k === "reorderLevel") c[k] = num(inp.value);
       else c[k] = inp.value;
       catalog[p] = c;
     });
@@ -758,62 +689,91 @@ document.getElementById("btnCatalog").onclick = ()=>{
   };
 };
 
-/* =========================================================
-   10) Excel Imports (your proven flow)
-========================================================= */
+/* ======================= Excel read + imports ======================= */
 async function readExcel(file, preferSheetContains){
-  const src = await ensureXLSX();
+  const libSrc = await ensureXLSX();
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type:"array" });
   let sheetName = wb.SheetNames[0];
   if(preferSheetContains){
-    const hit = wb.SheetNames.find(n=> norm(n).includes(norm(preferSheetContains)));
+    const hit = wb.SheetNames.find(n => norm(n).includes(norm(preferSheetContains)));
     if(hit) sheetName = hit;
   }
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-  return { sheetName, rows, libSrc: src };
+  return { sheetName, rows, libSrc };
 }
 
-async function importTransfersExcel(file){
-  const st = document.getElementById("adminStatus");
+async function importTransfersExcel(file, statusEl){
+  const st = statusEl || document.getElementById("adminStatus");
   st.textContent = "⏳ Importing Transfers…";
-  try{
-    const { sheetName, rows } = await readExcel(file, "transfer");
-    const parsed = parseTransfersRows(rows);
-    if(!parsed.length){ st.innerHTML = "<span class='bad'>❌ No transfers rows found.</span>"; return; }
-    transfers = parsed;
-    meta.transfersImportedAt = new Date().toISOString();
-    persist();
-    st.innerHTML = `<span class="ok">✅ Transfers imported: ${transfers.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
-    renderInventory(); renderTransfers();
-  }catch(e){
-    console.error(e);
-    st.innerHTML = `<span class="bad">❌ Transfers import failed.</span>\n${e.message || e}`;
-  }
+  const { sheetName, rows } = await readExcel(file, "transfer");
+  const parsed = parseTransfersRows(rows);
+  if(!parsed.length) throw new Error("No transfers rows found. Check headers.");
+  transfers = parsed;
+  meta.transfersImportedAt = new Date().toISOString();
+  persist();
+  st.innerHTML = `<span class="ok">✅ Transfers imported: ${transfers.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
 }
 
-async function importSalesExcel(file){
-  const st = document.getElementById("adminStatus");
+async function importSalesExcel(file, statusEl){
+  const st = statusEl || document.getElementById("adminStatus");
   st.textContent = "⏳ Importing Data…";
-  try{
-    const { sheetName, rows } = await readExcel(file, "data");
-    const parsed = parseSalesRows(rows);
-    if(!parsed.length){ st.innerHTML = "<span class='bad'>❌ No data rows found.</span>"; return; }
-    sales = parsed;
-    meta.salesImportedAt = new Date().toISOString();
-    persist();
-    st.innerHTML = `<span class="ok">✅ Data imported: ${sales.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
-    renderInventory(); renderData();
-  }catch(e){
-    console.error(e);
-    st.innerHTML = `<span class="bad">❌ Data import failed.</span>\n${e.message || e}`;
-  }
+  const { sheetName, rows } = await readExcel(file, "data");
+  const parsed = parseSalesRows(rows);
+  if(!parsed.length) throw new Error("No data rows found. Check headers.");
+  sales = parsed;
+  meta.salesImportedAt = new Date().toISOString();
+  persist();
+  st.innerHTML = `<span class="ok">✅ Data imported: ${sales.length.toLocaleString()}</span>\nSheet: ${sheetName}`;
 }
 
-/* =========================================================
-   11) JSON Backup / Reset
-========================================================= */
+/* ======================= One-time Excel modal (THIS is what you wanted) ======================= */
+document.getElementById("btnIndexExcel").onclick = ()=>{
+  openModal("Index from Excel (one-time)", `
+    <div class="small" style="margin-bottom:10px;">
+      Import your two history ledgers. This replaces stored Transfers + Data.
+    </div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <input id="xlTransfers" type="file" accept=".xlsx,.xls" class="w320">
+      <button class="btn btnPrimary" id="doTransfers">Import Transfers_History.xlsx</button>
+    </div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <input id="xlData" type="file" accept=".xlsx,.xls" class="w320">
+      <button class="btn btnPrimary" id="doData">Import Sales_Data_History.xlsx</button>
+    </div>
+
+    <div id="xlStatus" class="status"></div>
+  `);
+
+  document.getElementById("doTransfers").onclick = async ()=>{
+    const f = document.getElementById("xlTransfers").files[0];
+    const status = document.getElementById("xlStatus");
+    if(!f) return;
+    try{
+      await importTransfersExcel(f, status);
+      renderInventory(); renderTransfers();
+    }catch(e){
+      status.innerHTML = `<span class="bad">❌ Transfers import failed.</span>\n${e.message || e}`;
+    }
+  };
+
+  document.getElementById("doData").onclick = async ()=>{
+    const f = document.getElementById("xlData").files[0];
+    const status = document.getElementById("xlStatus");
+    if(!f) return;
+    try{
+      await importSalesExcel(f, status);
+      renderInventory(); renderData();
+    }catch(e){
+      status.innerHTML = `<span class="bad">❌ Data import failed.</span>\n${e.message || e}`;
+    }
+  };
+};
+
+/* ======================= JSON Backup / Restore / Reset ======================= */
 function exportBackup(){
   const blob = new Blob([JSON.stringify({meta, transfers, sales, catalog}, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -824,6 +784,7 @@ function exportBackup(){
   a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 500);
 }
+
 async function importBackupViaPicker(){
   const inp = document.createElement("input");
   inp.type = "file";
@@ -860,9 +821,7 @@ function resetAll(){
   document.getElementById("adminStatus").innerHTML = "<span class='ok'>✅ Reset complete.</span>";
 }
 
-/* =========================================================
-   12) Wire buttons + start
-========================================================= */
+/* ======================= Wire buttons ======================= */
 document.getElementById("btnLogin").onclick = signIn;
 document.getElementById("btnLogout").onclick = signOut;
 
@@ -870,260 +829,62 @@ document.getElementById("btnExport").onclick = ()=>{ exportBackup(); menu.classL
 document.getElementById("btnOpenImport").onclick = ()=>{ importBackupViaPicker(); menu.classList.remove("open"); };
 document.getElementById("btnReset").onclick = ()=>{ resetAll(); menu.classList.remove("open"); };
 
-document.getElementById("btnImportTransfers").onclick = ()=>{
+document.getElementById("btnImportTransfers").onclick = async ()=>{
   const f = document.getElementById("fileTransfers").files[0];
-  if(f) importTransfersExcel(f);
+  if(!f) return;
+  try{
+    await importTransfersExcel(f);
+    renderInventory(); renderTransfers();
+  }catch(e){
+    document.getElementById("adminStatus").innerHTML = `<span class="bad">❌ Transfers import failed.</span>\n${e.message || e}`;
+  }
 };
-document.getElementById("btnImportSales").onclick = ()=>{
+
+document.getElementById("btnImportSales").onclick = async ()=>{
   const f = document.getElementById("fileSales").files[0];
-  if(f) importSalesExcel(f);
+  if(!f) return;
+  try{
+    await importSalesExcel(f);
+    renderInventory(); renderData();
+  }catch(e){
+    document.getElementById("adminStatus").innerHTML = `<span class="bad">❌ Data import failed.</span>\n${e.message || e}`;
+  }
 };
 
 document.getElementById("btnTransferManual").onclick = ()=>{
-  openModal("Manual Transfer Entry",
-    `<div class="small">Manual entry UI is next. Right now your Excel imports are the source of truth.</div>`);
+  openModal("Manual Transfer Entry", `<div class="small">Manual entry UI is next. Excel imports are the source of truth for now.</div>`);
 };
 document.getElementById("btnDataManual").onclick = ()=>{
-  openModal("Manual Data Entry",
-    `<div class="small">Manual entry UI is next. Right now your Excel imports are the source of truth.</div>`);
+  openModal("Manual Data Entry", `<div class="small">Manual entry UI is next. Excel imports are the source of truth for now.</div>`);
 };
 
+/* ======================= Start App ======================= */
 async function startApp(email){
   document.getElementById("whoEmail").textContent = email;
   document.getElementById("loginView").style.display = "none";
   document.getElementById("appView").style.display = "block";
 
-  // Show library status (MSAL + XLSX)
-  const libLine = [];
-  libLine.push(`msal=${typeof msal}`);
+  const loginLib = document.getElementById("loginLib");
+  if(loginLib) loginLib.textContent = "";
+
   try{
     const src = await ensureXLSX();
-    libLine.push(`XLSX=ok (${src})`);
-    document.getElementById("libStatus").textContent = libLine.join(" • ");
-    document.getElementById("libStatus").className = "ok";
+    const libStatus = document.getElementById("libStatus");
+    if(libStatus){
+      libStatus.textContent = `msal=${typeof msal} • XLSX=ok (${src})`;
+    }
   }catch(e){
-    document.getElementById("libStatus").textContent = `XLSX failed: ${e.message}`;
-    document.getElementById("libStatus").className = "bad";
+    const libStatus = document.getElementById("libStatus");
+    if(libStatus) libStatus.textContent = `XLSX failed: ${e.message}`;
   }
 
-  renderInventory();
-  renderTransfers();
-  renderData();
+  renderInventory(); renderTransfers(); renderData();
   showPage("inventory");
 }
-/* =========================================================
-   XLSX LOADER (multi-CDN, the proven fix)
-========================================================= */
-const XLSX_SOURCES = [
-  "./xlsx.full.min.js", // optional: if you vendor it locally
-  "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
-  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
-];
 
-function loadScript(url){
-  return new Promise((resolve, reject)=>{
-    const s = document.createElement("script");
-    s.src = url;
-    s.async = true;
-    s.onload = () => resolve(url);
-    s.onerror = () => reject(new Error("Failed to load: " + url));
-    document.head.appendChild(s);
-  });
-}
-
-async function ensureXLSX(){
-  if (typeof XLSX === "object") return "already loaded";
-  const errs = [];
-  for (const url of XLSX_SOURCES){
-    try{
-      const src = await loadScript(url);
-      if (typeof XLSX === "object") return src;
-    }catch(e){ errs.push(e.message); }
-  }
-  throw new Error("All XLSX sources failed:\n" + errs.join("\n"));
-}
-
-/* =========================================================
-   STORAGE KEYS (use your existing ones if you already have them)
-========================================================= */
-const KEY_TRANSFERS = "aes_transfers_v1";
-const KEY_DATA      = "aes_data_v1";   // your “Data” (Sales_Data_History.xlsx)
-const KEY_META      = "aes_meta_v1";
-
-function loadJSON(key, fallback){
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
-}
-function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
-
-let meta = loadJSON(KEY_META, { indexedAt:null });
-let transfersRows = loadJSON(KEY_TRANSFERS, []);
-let dataRows = loadJSON(KEY_DATA, []);
-
-/* =========================================================
-   EXCEL READ UTILITY
-========================================================= */
-async function readExcelFile(file, preferSheetContains){
-  await ensureXLSX();
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type:"array" });
-
-  let sheetName = wb.SheetNames[0];
-  if (preferSheetContains){
-    const hit = wb.SheetNames.find(n => String(n).toLowerCase().includes(preferSheetContains.toLowerCase()));
-    if (hit) sheetName = hit;
-  }
-
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-  return { sheetName, rows };
-}
-
-/* =========================================================
-   EXACT HEADER GETTER (matches your Excel)
-========================================================= */
-function getByHeader(row, header){
-  const want = String(header).trim().toLowerCase();
-  for (const k of Object.keys(row)){
-    if (String(k).trim().toLowerCase() === want) return row[k];
-  }
-  return "";
-}
-
-/* =========================================================
-   PARSERS (Transfers_History.xlsx + Sales_Data_History.xlsx)
-========================================================= */
-function parseTransfers(rows){
-  return rows.map(r => ({
-    transferNumber: String(getByHeader(r,"Transfer Number")).trim(),
-    partNumber: String(getByHeader(r,"Part Number")).trim(),
-    type: String(getByHeader(r,"Type")).trim(),
-    trackingNumber: String(getByHeader(r,"Tracking Number")).trim(),
-    quantity: Number(getByHeader(r,"Quantity") || 0),
-    arrivalDate: String(getByHeader(r,"ESD")).trim(),
-    arrived: String(getByHeader(r,"Arrived")).trim(),
-    notes: String(getByHeader(r,"Notes")).trim()
-  })).filter(x => x.partNumber);
-}
-
-function parseData(rows){
-  // This is your Sales_Data_History “Data” sheet
-  return rows.map(r => {
-    const part = String(getByHeader(r,"Part Number")).trim();
-    const date = String(getByHeader(r,"Date")).trim();
-    const id = String(getByHeader(r,"Type")).trim();
-    const qty = Number(getByHeader(r,"Qty Sold") || 0);
-    const costRaw = getByHeader(r,"Price Sold");
-    const costText = String(costRaw ?? "").trim();
-    const so = String(getByHeader(r,"PO Number")).trim();
-    const distributor = String(getByHeader(r,"Customer")).trim();
-    const total = Number(getByHeader(r,"Total") || 0);
-
-    // returns add back; sales subtract — keep signed quantity logic if you want
-    const isReturn = costText.toLowerCase().includes("return") || distributor.toLowerCase() === "return";
-    const signedQty = isReturn ? -Math.abs(qty) : Math.abs(qty);
-
-    return {
-      partNumber: part,
-      date,
-      id,
-      quantity: signedQty,
-      costPerUnit: (costText !== "" && !isNaN(parseFloat(costText))) ? Number(costText) : null,
-      costLabel: (costText !== "" && isNaN(parseFloat(costText))) ? costText : "",
-      salesOrderNumber: so,
-      distributor,
-      total
-    };
-  }).filter(x => x.partNumber);
-}
-
-/* =========================================================
-   ONE-TIME IMPORT MODAL
-========================================================= */
-function openModal(title, html){
-  document.getElementById("modalTitle").textContent = title;
-  document.getElementById("modalBody").innerHTML = html;
-  document.getElementById("modalOverlay").classList.add("open");
-}
-
-document.getElementById("modalClose").onclick = () => {
-  document.getElementById("modalOverlay").classList.remove("open");
-};
-
-document.getElementById("btnIndexExcel").onclick = async () => {
-  // Show modal UI
-  openModal("Index from Excel (one-time)", `
-    <div class="small" style="margin-bottom:10px;">
-      Import your history ledgers. This replaces existing stored data.
-    </div>
-
-    <div class="row" style="margin-bottom:10px;">
-      <input id="xlTransfers" type="file" accept=".xlsx,.xls" class="w320">
-      <button class="btn btnPrimary" id="doTransfers">Import Transfers_History.xlsx</button>
-    </div>
-
-    <div class="row" style="margin-bottom:10px;">
-      <input id="xlData" type="file" accept=".xlsx,.xls" class="w320">
-      <button class="btn btnPrimary" id="doData">Import Sales_Data_History.xlsx</button>
-    </div>
-
-    <div id="xlStatus" class="status"></div>
-  `);
-
-  // wire buttons
-  document.getElementById("doTransfers").onclick = async () => {
-    const f = document.getElementById("xlTransfers").files[0];
-    if (!f) return;
-    const status = document.getElementById("xlStatus");
-    status.textContent = "⏳ Importing Transfers…";
-
-    try{
-      const { sheetName, rows } = await readExcelFile(f, "transfer");
-      transfersRows = parseTransfers(rows);
-      saveJSON(KEY_TRANSFERS, transfersRows);
-
-      meta.indexedAt = new Date().toISOString();
-      saveJSON(KEY_META, meta);
-
-      status.innerHTML = `<span class="ok">✅ Transfers imported: ${transfersRows.length}</span><br>Sheet: ${sheetName}`;
-      // re-render your UI
-      if (typeof renderTransfers === "function") renderTransfers();
-      if (typeof renderInventory === "function") renderInventory();
-    }catch(e){
-      status.innerHTML = `<span class="bad">❌ Transfers import failed.</span><br>${e.message ||
-`;
-    }
-  };
-
-  document.getElementById("doData").onclick = async () => {
-    const f = document.getElementById("xlData").files[0];
-    if (!f) return;
-    const status = document.getElementById("xlStatus");
-    status.textContent = "⏳ Importing Data…";
-
-    try{
-      const { sheetName, rows } = await readExcelFile(f, "data");
-      dataRows = parseData(rows);
-      saveJSON(KEY_DATA, dataRows);
-
-      meta.indexedAt = new Date().toISOString();
-      saveJSON(KEY_META, meta);
-
-      status.innerHTML = `<span class="ok">✅ Data imported: ${dataRows.length}</span><br>Sheet: ${sheetName}`;
-      // re-render your UI
-      if (typeof renderData === "function") renderData();
-      if (typeof renderInventory === "function") renderInventory();
-    }catch(e){
-      status.innerHTML = `<span class="bad">❌ Data import failed.</span><br>${e.message}`;
-    }
-  };
-};
-// On load: show that msal is present + attempt session restore
 (async ()=>{
-  const loginLib = document.getElementById("loginLib");
-  loginLib.textContent = `Libraries: msal=${typeof msal} • redirectUri=${baseRedirect}`;
-  await tryRestoreSession(); // if it fails, user clicks Sign in
+  document.getElementById("loginLib").textContent = `Libraries: msal=${typeof msal} • redirectUri=${baseRedirect}`;
+  await tryRestoreSession();
 })();
 </script>
 </body>
