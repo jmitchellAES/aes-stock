@@ -148,6 +148,7 @@
         <button data-page="month">Month Breakdown</button>
         <button data-page="analyzed">Analyzed</button>
         <div class="sep"></div>
+        <button id="btnIndexExcel">Index from Excel (one-time)</button>
         <button id="btnExport">Export JSON Backup</button>
         <button id="btnOpenImport">Import JSON Backup</button>
         <button id="btnReset" class="btnDanger">Reset Local Data</button>
@@ -492,6 +493,9 @@ function computeInventoryMap(){
     const key = upper(p);
     if(!map.has(key)) map.set(key, { partNumber:key, transferredNet:0, soldNet:0, onHand:0 });
     return map.get(key);
+    // If your current code uses `transfers` and `sales`:
+let transfers = transfersRows;
+let sales = dataRows;
   };
 
   transfers.forEach(t=>{
@@ -907,7 +911,214 @@ async function startApp(email){
   renderData();
   showPage("inventory");
 }
+/* =========================================================
+   XLSX LOADER (multi-CDN, the proven fix)
+========================================================= */
+const XLSX_SOURCES = [
+  "./xlsx.full.min.js", // optional: if you vendor it locally
+  "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+];
 
+function loadScript(url){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = url;
+    s.async = true;
+    s.onload = () => resolve(url);
+    s.onerror = () => reject(new Error("Failed to load: " + url));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureXLSX(){
+  if (typeof XLSX === "object") return "already loaded";
+  const errs = [];
+  for (const url of XLSX_SOURCES){
+    try{
+      const src = await loadScript(url);
+      if (typeof XLSX === "object") return src;
+    }catch(e){ errs.push(e.message); }
+  }
+  throw new Error("All XLSX sources failed:\n" + errs.join("\n"));
+}
+
+/* =========================================================
+   STORAGE KEYS (use your existing ones if you already have them)
+========================================================= */
+const KEY_TRANSFERS = "aes_transfers_v1";
+const KEY_DATA      = "aes_data_v1";   // your “Data” (Sales_Data_History.xlsx)
+const KEY_META      = "aes_meta_v1";
+
+function loadJSON(key, fallback){
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let meta = loadJSON(KEY_META, { indexedAt:null });
+let transfersRows = loadJSON(KEY_TRANSFERS, []);
+let dataRows = loadJSON(KEY_DATA, []);
+
+/* =========================================================
+   EXCEL READ UTILITY
+========================================================= */
+async function readExcelFile(file, preferSheetContains){
+  await ensureXLSX();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:"array" });
+
+  let sheetName = wb.SheetNames[0];
+  if (preferSheetContains){
+    const hit = wb.SheetNames.find(n => String(n).toLowerCase().includes(preferSheetContains.toLowerCase()));
+    if (hit) sheetName = hit;
+  }
+
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+  return { sheetName, rows };
+}
+
+/* =========================================================
+   EXACT HEADER GETTER (matches your Excel)
+========================================================= */
+function getByHeader(row, header){
+  const want = String(header).trim().toLowerCase();
+  for (const k of Object.keys(row)){
+    if (String(k).trim().toLowerCase() === want) return row[k];
+  }
+  return "";
+}
+
+/* =========================================================
+   PARSERS (Transfers_History.xlsx + Sales_Data_History.xlsx)
+========================================================= */
+function parseTransfers(rows){
+  return rows.map(r => ({
+    transferNumber: String(getByHeader(r,"Transfer Number")).trim(),
+    partNumber: String(getByHeader(r,"Part Number")).trim(),
+    type: String(getByHeader(r,"Type")).trim(),
+    trackingNumber: String(getByHeader(r,"Tracking Number")).trim(),
+    quantity: Number(getByHeader(r,"Quantity") || 0),
+    arrivalDate: String(getByHeader(r,"ESD")).trim(),
+    arrived: String(getByHeader(r,"Arrived")).trim(),
+    notes: String(getByHeader(r,"Notes")).trim()
+  })).filter(x => x.partNumber);
+}
+
+function parseData(rows){
+  // This is your Sales_Data_History “Data” sheet
+  return rows.map(r => {
+    const part = String(getByHeader(r,"Part Number")).trim();
+    const date = String(getByHeader(r,"Date")).trim();
+    const id = String(getByHeader(r,"Type")).trim();
+    const qty = Number(getByHeader(r,"Qty Sold") || 0);
+    const costRaw = getByHeader(r,"Price Sold");
+    const costText = String(costRaw ?? "").trim();
+    const so = String(getByHeader(r,"PO Number")).trim();
+    const distributor = String(getByHeader(r,"Customer")).trim();
+    const total = Number(getByHeader(r,"Total") || 0);
+
+    // returns add back; sales subtract — keep signed quantity logic if you want
+    const isReturn = costText.toLowerCase().includes("return") || distributor.toLowerCase() === "return";
+    const signedQty = isReturn ? -Math.abs(qty) : Math.abs(qty);
+
+    return {
+      partNumber: part,
+      date,
+      id,
+      quantity: signedQty,
+      costPerUnit: (costText !== "" && !isNaN(parseFloat(costText))) ? Number(costText) : null,
+      costLabel: (costText !== "" && isNaN(parseFloat(costText))) ? costText : "",
+      salesOrderNumber: so,
+      distributor,
+      total
+    };
+  }).filter(x => x.partNumber);
+}
+
+/* =========================================================
+   ONE-TIME IMPORT MODAL
+========================================================= */
+function openModal(title, html){
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").innerHTML = html;
+  document.getElementById("modalOverlay").classList.add("open");
+}
+
+document.getElementById("modalClose").onclick = () => {
+  document.getElementById("modalOverlay").classList.remove("open");
+};
+
+document.getElementById("btnIndexExcel").onclick = async () => {
+  // Show modal UI
+  openModal("Index from Excel (one-time)", `
+    <div class="small" style="margin-bottom:10px;">
+      Import your history ledgers. This replaces existing stored data.
+    </div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <input id="xlTransfers" type="file" accept=".xlsx,.xls" class="w320">
+      <button class="btn btnPrimary" id="doTransfers">Import Transfers_History.xlsx</button>
+    </div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <input id="xlData" type="file" accept=".xlsx,.xls" class="w320">
+      <button class="btn btnPrimary" id="doData">Import Sales_Data_History.xlsx</button>
+    </div>
+
+    <div id="xlStatus" class="status"></div>
+  `);
+
+  // wire buttons
+  document.getElementById("doTransfers").onclick = async () => {
+    const f = document.getElementById("xlTransfers").files[0];
+    if (!f) return;
+    const status = document.getElementById("xlStatus");
+    status.textContent = "⏳ Importing Transfers…";
+
+    try{
+      const { sheetName, rows } = await readExcelFile(f, "transfer");
+      transfersRows = parseTransfers(rows);
+      saveJSON(KEY_TRANSFERS, transfersRows);
+
+      meta.indexedAt = new Date().toISOString();
+      saveJSON(KEY_META, meta);
+
+      status.innerHTML = `<span class="ok">✅ Transfers imported: ${transfersRows.length}</span><br>Sheet: ${sheetName}`;
+      // re-render your UI
+      if (typeof renderTransfers === "function") renderTransfers();
+      if (typeof renderInventory === "function") renderInventory();
+    }catch(e){
+      status.innerHTML = `<span class="bad">❌ Transfers import failed.</span><br>${e.message ||
+`;
+    }
+  };
+
+  document.getElementById("doData").onclick = async () => {
+    const f = document.getElementById("xlData").files[0];
+    if (!f) return;
+    const status = document.getElementById("xlStatus");
+    status.textContent = "⏳ Importing Data…";
+
+    try{
+      const { sheetName, rows } = await readExcelFile(f, "data");
+      dataRows = parseData(rows);
+      saveJSON(KEY_DATA, dataRows);
+
+      meta.indexedAt = new Date().toISOString();
+      saveJSON(KEY_META, meta);
+
+      status.innerHTML = `<span class="ok">✅ Data imported: ${dataRows.length}</span><br>Sheet: ${sheetName}`;
+      // re-render your UI
+      if (typeof renderData === "function") renderData();
+      if (typeof renderInventory === "function") renderInventory();
+    }catch(e){
+      status.innerHTML = `<span class="bad">❌ Data import failed.</span><br>${e.message}`;
+    }
+  };
+};
 // On load: show that msal is present + attempt session restore
 (async ()=>{
   const loginLib = document.getElementById("loginLib");
