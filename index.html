@@ -651,51 +651,97 @@ function importExcel(file){
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type:"array" });
 
-      // Pick sheet: prefer one with "Inventory List", else first
+      // Pick sheet: prefer one with "Inventory" in the name
       let sheetName = wb.SheetNames[0];
-      const invSheet = wb.SheetNames.find(n => String(n).toLowerCase().includes("inventory list"));
-      if(invSheet) sheetName = invSheet;
+      const invSheet = wb.SheetNames.find(n =>
+        String(n).toLowerCase().includes("inventory")
+      );
+      if (invSheet) sheetName = invSheet;
 
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
 
-      if(!rows.length){
+      if (!rows.length) {
         out.textContent = `❌ No rows found in sheet "${sheetName}".`;
         return;
       }
 
-      // helper to fetch by header name
-      const get = (row, name) => row[name] ?? "";
+      // Normalize header access
+      const norm = (s) => String(s || "").trim().toLowerCase();
 
-      skus = rows.map(r=>{
-        const invId = String(get(r,"Inventory ID")).trim();
-        const partNumber = String(get(r,"Part Number")).trim();
-        const description = String(get(r,"Description")).trim();
-        const openingQty = num(get(r,"Quantity in Stock"));
-        const reorderLevel = num(get(r,"Reorder Level"));
-        const palletCaseQty = num(get(r,"Quantity in Pallet/Case"));
-        const nls = String(get(r,"No Longer Stocking?")).trim().toLowerCase();
+      const get = (row, ...candidates) => {
+        const keys = Object.keys(row);
+        for (const k of keys) {
+          const nk = norm(k);
+          if (candidates.some(c => nk === norm(c))) {
+            return row[k];
+          }
+        }
+        return "";
+      };
+
+      skus = rows.map(r => {
+        const invId = String(get(r,
+          "inventory id","inventory_id","id"
+        )).trim();
+
+        const partNumber = String(get(r,
+          "part number","part","sku"
+        )).trim();
+
+        const description = String(get(r,
+          "description","desc"
+        )).trim();
+
+        const openingQty = num(get(r,
+          "quantity in stock","qty in stock","quantity","qty"
+        ));
+
+        const reorderLevel = num(get(r,
+          "reorder level","reorder","min"
+        ));
+
+        const palletCaseQty = num(get(r,
+          "quantity in pallet/case","qty pallet/case","pallet/case"
+        ));
+
+        const nls = String(get(r,
+          "no longer stocking?","no longer stocking","discontinued"
+        )).trim().toLowerCase();
+
         const active = !(nls && nls !== "no" && nls !== "0" && nls !== "false");
 
-        return { invId, partNumber, description, openingQty, reorderLevel, palletCaseQty, active };
+        return {
+          invId,
+          partNumber,
+          description,
+          openingQty,
+          reorderLevel,
+          palletCaseQty,
+          active
+        };
       }).filter(x => x.partNumber);
+
+      if (!skus.length) {
+        out.textContent = "❌ Parsed file but found 0 valid SKUs. Check headers.";
+        return;
+      }
 
       meta.indexed = true;
       meta.indexedAt = new Date().toISOString();
       persist();
 
-      out.textContent = `✅ Imported ${skus.length} SKUs from sheet "${sheetName}".`;
+      out.textContent = `✅ Imported ${skus.length} SKUs from "${sheetName}".`;
       renderAll();
 
-    } catch(err){
-      console.error(err);
-      out.textContent = "❌ Excel parse failed. Open Console for details.";
+    } catch (err) {
+      console.error("Excel import error:", err);
+      out.textContent = "❌ Excel parse failed. See Console for details.";
     }
   };
 
   reader.readAsArrayBuffer(file);
 }
-
 /* =========================
    BACKUP EXPORT
 ========================= */
